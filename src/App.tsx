@@ -13,10 +13,15 @@ export default function App() {
   return (
     <>
       <SignedOut>
-        <div className="flex min-h-screen items-center justify-center bg-[var(--crm-bg)] p-4">
+        <div className="crm-light flex min-h-screen items-center justify-center bg-[var(--crm-bg)] p-4">
           <div className="w-full max-w-md">
-            <div className="mb-6 text-center">
-              <h1 className="text-2xl font-bold text-zinc-100">Feedback</h1>
+            <div className="mb-6 flex flex-col items-center text-center">
+              <img
+                src="/mesoutils-light.png"
+                alt="Mes Outils"
+                className="h-16 w-auto object-contain"
+              />
+              <h1 className="mt-4 text-2xl font-bold text-zinc-100">Feedback</h1>
               <p className="mt-2 text-sm text-zinc-400">
                 Connectez-vous avec votre compte habituel pour nous faire un retour sur
                 les applications du groupe.

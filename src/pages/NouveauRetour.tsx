@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useMutation } from "convex/react";
 import { useNavigate } from "react-router-dom";
-import { Check, Loader2, Send } from "lucide-react";
+import { ArrowLeft, Check, Loader2, Send } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { PageHeader } from "../components/crm/PageHeader";
 import { Button } from "../components/ui/Button";
-import { APPS } from "../lib/apps";
+import { APPS, appByKey } from "../lib/apps";
 import {
   FEEDBACK_TYPES,
   TYPE_COLORS,
@@ -16,19 +16,30 @@ import {
   type FeedbackType,
 } from "../lib/constants";
 import { cn } from "../lib/cn";
+import { CONTAINER } from "../lib/layout";
+
+type Step = 1 | 2 | 3;
+
+const STEP_TITLES: Record<Step, string> = {
+  1: "Quelle application ?",
+  2: "De quel type de retour s'agit-il ?",
+  3: "Décrivez votre retour",
+};
 
 /**
- * Dépôt d'un retour, en trois temps : application concernée, type, description.
+ * Dépôt d'un retour sous forme d'assistant : une décision par écran
+ * (application → type → description). Chaque choix fait avancer l'étape, et le
+ * fil d'Ariane permet de revenir sur une étape déjà remplie.
  *
- * Les tuiles d'application reprennent le dessin de `MyApps` (logo, fond
- * coloré, description). On les affiche **toutes**, sans filtrer par droits :
- * le but est que n'importe quel utilisateur puisse remonter un problème, y
- * compris sur une app où il n'a aucun grant CRM.
+ * Les applications sont **toutes** proposées, sans filtrer par droits : le but
+ * est que n'importe qui puisse remonter un problème, y compris sur une app où
+ * il n'a aucun grant CRM.
  */
 export function NouveauRetour() {
   const navigate = useNavigate();
   const submit = useMutation(api.feedback.submit);
 
+  const [step, setStep] = useState<Step>(1);
   const [app, setApp] = useState<FeedbackAppKey | null>(null);
   const [type, setType] = useState<FeedbackType | null>(null);
   const [description, setDescription] = useState("");
@@ -36,6 +47,16 @@ export function NouveauRetour() {
   const [error, setError] = useState<string | null>(null);
 
   const canSubmit = app !== null && type !== null && description.trim() !== "" && !saving;
+
+  function chooseApp(key: FeedbackAppKey) {
+    setApp(key);
+    setStep(2);
+  }
+
+  function chooseType(key: FeedbackType) {
+    setType(key);
+    setStep(3);
+  }
 
   async function handleSubmit() {
     if (app === null || type === null) return;
@@ -54,133 +75,175 @@ export function NouveauRetour() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)] flex-col">
+    <div className="flex min-h-[calc(100vh-4rem)] flex-col">
       <PageHeader
         title="Nouveau retour"
         subtitle="Dites-nous ce qui vous manque ou ce qui ne va pas — on s'en occupe."
       />
 
-      <div className="mx-auto w-full max-w-4xl space-y-10 px-4 py-8 sm:px-6">
-        {/* 1 — Application */}
-        <section>
-          <StepTitle step={1} title="Quelle application ?" />
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {APPS.map((item) => {
-              const selected = app === item.key;
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => setApp(item.key)}
-                  className={cn(
-                    "block h-full rounded-lg border p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg",
-                    selected
-                      ? "border-transparent ring-2 ring-white"
-                      : "border-black/5 hover:shadow-lg",
-                  )}
-                  style={{ backgroundColor: item.cardBg, color: "#1f1b18" }}
-                  aria-pressed={selected}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <img
-                      src={item.logoSrc}
-                      alt={item.label}
-                      className="h-14 w-auto object-contain"
-                    />
-                    {selected && (
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1f1b18] text-white">
-                        <Check className="h-3.5 w-3.5" />
-                      </span>
-                    )}
-                  </div>
-                  <h3 className="mt-5 text-lg font-semibold">{item.label}</h3>
-                  <p className="mt-2 text-sm leading-6 text-[#1f1b18]/70">
-                    {item.description}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        </section>
+      <div className={cn(CONTAINER, "flex-1 py-8")}>
+        <Steps step={step} app={app} type={type} onGoTo={setStep} />
 
-        {/* 2 — Type de retour */}
-        <section>
-          <StepTitle step={2} title="De quel type de retour s'agit-il ?" />
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <h2 className="mt-8 text-2xl font-bold tracking-tight text-zinc-100">
+          {STEP_TITLES[step]}
+        </h2>
+
+        {step === 1 && (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {APPS.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => chooseApp(item.key)}
+                aria-pressed={app === item.key}
+                style={{ backgroundColor: item.cardBg }}
+                className={cn(
+                  "flex h-48 flex-col items-center justify-center gap-3 rounded-2xl border p-6 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg",
+                  app === item.key
+                    ? "border-transparent ring-2 ring-brand-600"
+                    : "border-black/5",
+                )}
+              >
+                <img src={item.logoSrc} alt="" className="h-20 w-auto object-contain" />
+                <span className="text-xl font-bold text-[#1f1b18]">{item.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
             {FEEDBACK_TYPES.map((key) => {
               const Icon = TYPE_ICONS[key];
-              const selected = type === key;
               return (
                 <button
                   key={key}
                   type="button"
-                  onClick={() => setType(key)}
-                  aria-pressed={selected}
+                  onClick={() => chooseType(key)}
+                  aria-pressed={type === key}
                   style={{ backgroundColor: TYPE_COLORS[key] }}
                   className={cn(
-                    "rounded-xl p-4 text-left text-white shadow-sm ring-1 ring-black/10 transition hover:brightness-110",
-                    selected && "ring-2 ring-white brightness-110",
+                    "rounded-2xl p-5 text-left text-white shadow-sm transition hover:brightness-110",
+                    type === key ? "ring-2 ring-brand-600" : "ring-1 ring-black/10",
                   )}
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="inline-flex items-center gap-2 text-sm font-semibold">
-                      <Icon className="h-4 w-4" />
-                      {TYPE_LABELS[key]}
-                    </span>
-                    {selected && <Check className="h-4 w-4 shrink-0" />}
-                  </div>
-                  <p className="mt-2 text-xs leading-5 text-white/80">
+                  <span className="inline-flex items-center gap-2 text-base font-semibold">
+                    <Icon className="h-5 w-5" />
+                    {TYPE_LABELS[key]}
+                  </span>
+                  <p className="mt-2 text-sm leading-5 text-white/85">
                     {TYPE_DESCRIPTIONS[key]}
                   </p>
                 </button>
               );
             })}
           </div>
-        </section>
-
-        {/* 3 — Description */}
-        <section>
-          <StepTitle step={3} title="Décrivez votre retour" />
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={7}
-            placeholder="Le plus précis possible : ce que vous faisiez, ce que vous attendiez, ce qui s'est passé…"
-            className="mt-4 w-full rounded-xl border border-[var(--crm-border)] bg-[var(--crm-surface-2)] p-4 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-white/40"
-          />
-        </section>
-
-        {error && (
-          <p className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400 ring-1 ring-red-500/30">
-            {error}
-          </p>
         )}
 
-        <div className="flex items-center justify-end gap-3 pb-4">
-          <Button variant="secondary" onClick={() => navigate("/")} disabled={saving}>
-            Annuler
-          </Button>
-          <Button onClick={handleSubmit} disabled={!canSubmit}>
-            {saving ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
+        {step === 3 && (
+          <>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={9}
+              autoFocus
+              placeholder="Le plus précis possible : ce que vous faisiez, ce que vous attendiez, ce qui s'est passé…"
+              className="mt-6 w-full rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-surface-2)] p-4 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/40"
+            />
+
+            {error && (
+              <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm font-medium text-red-700 ring-1 ring-red-200">
+                {error}
+              </p>
             )}
-            Envoyer mon retour
-          </Button>
-        </div>
+
+            <div className="mt-6 flex items-center justify-between gap-3">
+              <Button variant="secondary" onClick={() => setStep(2)} disabled={saving}>
+                <ArrowLeft className="h-4 w-4" /> Retour
+              </Button>
+              <Button size="lg" onClick={handleSubmit} disabled={!canSubmit}>
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                Envoyer mon retour
+              </Button>
+            </div>
+          </>
+        )}
+
+        {step !== 3 && (
+          <div className="mt-6">
+            <Button
+              variant="secondary"
+              onClick={() => (step === 1 ? navigate("/") : setStep(1))}
+            >
+              <ArrowLeft className="h-4 w-4" /> {step === 1 ? "Annuler" : "Retour"}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function StepTitle({ step, title }: { step: number; title: string }) {
+/**
+ * Fil d'Ariane cliquable : montre où l'on en est, rappelle les choix déjà faits
+ * et permet d'y revenir. On ne peut pas sauter vers une étape non atteinte.
+ */
+function Steps({
+  step,
+  app,
+  type,
+  onGoTo,
+}: {
+  step: Step;
+  app: FeedbackAppKey | null;
+  type: FeedbackType | null;
+  onGoTo: (step: Step) => void;
+}) {
+  const items: Array<{ step: Step; label: string; value: string | null }> = [
+    { step: 1, label: "Application", value: app ? appByKey(app)?.label ?? null : null },
+    { step: 2, label: "Type", value: type ? TYPE_LABELS[type] : null },
+    { step: 3, label: "Description", value: null },
+  ];
+
   return (
-    <div className="flex items-center gap-3">
-      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--crm-surface-3)] text-xs font-bold text-zinc-300">
-        {step}
-      </span>
-      <h2 className="text-base font-semibold text-zinc-100">{title}</h2>
-    </div>
+    <ol className="flex flex-wrap items-center gap-2">
+      {items.map((item, index) => {
+        const done = item.step < step;
+        const current = item.step === step;
+        const reachable = item.step <= step;
+        return (
+          <li key={item.step} className="flex items-center gap-2">
+            {index > 0 && <span className="text-zinc-400">›</span>}
+            <button
+              type="button"
+              disabled={!reachable}
+              onClick={() => onGoTo(item.step)}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm font-medium transition",
+                current && "bg-[var(--crm-surface-3)] text-zinc-100",
+                !current && reachable && "text-zinc-400 hover:bg-[var(--crm-surface-2)]",
+                !reachable && "cursor-default text-zinc-400",
+              )}
+            >
+              <span
+                className={cn(
+                  "flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold",
+                  done && "bg-brand-600 text-white",
+                  current && "bg-zinc-100 text-[var(--crm-bg)]",
+                  !done && !current && "bg-[var(--crm-surface-3)] text-zinc-400",
+                )}
+              >
+                {done ? <Check className="h-3 w-3" /> : item.step}
+              </span>
+              {item.value ?? item.label}
+            </button>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

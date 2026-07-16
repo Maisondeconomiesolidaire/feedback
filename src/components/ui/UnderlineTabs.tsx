@@ -30,12 +30,12 @@ export function UnderlineTabs<T extends string>({
                 size === "sm" ? "text-sm" : "text-[15px]",
                 active
                   ? "border-brand-500 text-zinc-100"
-                  : "border-transparent text-zinc-500 hover:text-zinc-300",
+                  : "border-transparent text-zinc-400 hover:text-zinc-300",
               )}
             >
               <span>{item.label}</span>
               {counts?.[item.key] !== undefined && (
-                <span className="ml-2 text-xs text-zinc-500">
+                <span className="ml-2 text-xs text-zinc-400">
                   {counts[item.key]}
                 </span>
               )}

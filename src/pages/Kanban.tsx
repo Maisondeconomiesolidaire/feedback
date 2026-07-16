@@ -27,6 +27,7 @@ import {
 } from "../lib/constants";
 import { formatDateTime, initialsFromName, authorDisplayName } from "../lib/format";
 import { cn } from "../lib/cn";
+import { CONTAINER } from "../lib/layout";
 
 type Tab = "open" | "refuse";
 
@@ -62,7 +63,7 @@ export function Kanban() {
   }
   if (!isAdmin) {
     return (
-      <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4">
+      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4">
         <EmptyState
           icon={<Lock className="h-10 w-10" />}
           title="Page réservée"
@@ -73,13 +74,13 @@ export function Kanban() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)] flex-col">
+    <div className="flex min-h-[calc(100vh-4rem)] flex-col">
       <PageHeader
         title="Retours"
         subtitle="Tous les retours remontés depuis les applications du groupe."
       />
 
-      <div className="px-4 pt-4 sm:px-6">
+      <div className={cn(CONTAINER, "pt-4")}>
         <UnderlineTabs
           items={TABS}
           value={tab}
@@ -96,7 +97,8 @@ export function Kanban() {
       </div>
 
       {/* Filtres */}
-      <div className="relative z-10 border-b border-[var(--crm-border)] px-4 sm:px-6">
+      <div className="relative z-10 border-b border-[var(--crm-border)]">
+        <div className={CONTAINER}>
         <div className="flex flex-wrap items-center gap-2 py-3">
           <FilterChip
             label="Tous les types"
@@ -126,11 +128,12 @@ export function Kanban() {
               onClick={() => setAppFilter(appFilter === app.key ? null : app.key)}
             />
           ))}
+          </div>
         </div>
       </div>
 
       {/* Board */}
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div className={cn(CONTAINER, "flex-1 overflow-auto py-6")}>
         {items === undefined ? (
           <FullSpinner label="Chargement des retours…" />
         ) : displayed.length === 0 ? (
@@ -291,7 +294,7 @@ function FeedbackDrawer({
             </p>
             <p className="truncate text-xs text-zinc-400">{item.authorEmail}</p>
           </div>
-          <span className="ml-auto text-xs text-zinc-500">{formatDateTime(item.createdAt)}</span>
+          <span className="ml-auto text-xs text-zinc-400">{formatDateTime(item.createdAt)}</span>
         </div>
 
         {/* Description */}
@@ -359,6 +362,6 @@ function FeedbackDrawer({
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[11px] font-bold uppercase tracking-wide text-zinc-500">{children}</p>
+    <p className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">{children}</p>
   );
 }

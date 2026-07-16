@@ -18,6 +18,8 @@ import {
   type FeedbackType,
 } from "../lib/constants";
 import { formatDateTime, formatRelative } from "../lib/format";
+import { cn } from "../lib/cn";
+import { CONTAINER } from "../lib/layout";
 
 /**
  * Page de l'utilisateur « normal » : ses propres retours, en grosses cards
@@ -28,7 +30,7 @@ export function MesRetours() {
   const items = useQuery(api.feedback.listMine, {});
 
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)] flex-col">
+    <div className="flex min-h-[calc(100vh-4rem)] flex-col">
       <PageHeader
         title="Mes retours"
         subtitle="Suivez ce que vous nous avez remonté et où ça en est."
@@ -41,7 +43,7 @@ export function MesRetours() {
         }
       />
 
-      <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6">
+      <div className={cn(CONTAINER, "flex-1 py-8")}>
         {items === undefined ? (
           <FullSpinner label="Chargement de vos retours…" />
         ) : items.length === 0 ? (
