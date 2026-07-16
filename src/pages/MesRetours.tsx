@@ -33,7 +33,7 @@ export function MesRetours() {
   const [openId, setOpenId] = useState<Id<"feedback"> | null>(null);
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+    <div className="flex min-h-[calc(100vh-3.5rem)] lg:min-h-screen flex-col">
       <PageHeader
         title="Mes retours"
         subtitle="Suivez ce que vous nous avez remonté et où ça en est."

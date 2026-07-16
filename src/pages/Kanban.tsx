@@ -47,7 +47,7 @@ export function Kanban() {
   }
   if (!isAdmin) {
     return (
-      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4">
+      <div className="flex min-h-[calc(100vh-3.5rem)] lg:min-h-screen items-center justify-center px-4">
         <EmptyState
           icon={<Lock className="h-10 w-10" />}
           title="Page réservée"
@@ -58,7 +58,7 @@ export function Kanban() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+    <div className="flex min-h-[calc(100vh-3.5rem)] lg:min-h-screen flex-col">
       <PageHeader
         title="Retours"
         subtitle="Tous les retours remontés depuis les applications du groupe."

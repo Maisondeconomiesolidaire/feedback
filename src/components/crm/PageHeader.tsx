@@ -3,11 +3,11 @@ import { cn } from "../../lib/cn";
 import { CONTAINER } from "../../lib/layout";
 
 /**
- * Titre de page. Il partage la gouttière `CONTAINER` avec la barre de
- * navigation : sans elle, le titre partait du bord de l'écran alors que la nav
- * était centrée, et rien ne s'alignait.
+ * Titre de page. Il partage la gouttière `CONTAINER` avec le contenu : sans
+ * elle, le titre partait du bord de l'écran et rien ne s'alignait.
  *
- * `top-16` colle sous l'en-tête, qui fait exactement `h-16`.
+ * En mobile il colle sous la barre supérieure (`h-14`) ; en desktop la sidebar
+ * est latérale, il n'y a rien au-dessus, donc `top-0`.
  */
 export function PageHeader({
   title,
@@ -19,7 +19,7 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="sticky top-16 z-20 border-b border-[var(--crm-border)] bg-[color:color-mix(in_srgb,var(--crm-bg)_84%,transparent)] backdrop-blur">
+    <header className="sticky top-14 z-20 border-b border-[var(--crm-border)] bg-[color:color-mix(in_srgb,var(--crm-bg)_84%,transparent)] backdrop-blur lg:top-0">
       <div
         className={cn(
           CONTAINER,

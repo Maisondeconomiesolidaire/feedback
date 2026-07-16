@@ -75,7 +75,7 @@ export function NouveauRetour() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+    <div className="flex min-h-[calc(100vh-3.5rem)] lg:min-h-screen flex-col">
       <PageHeader
         title="Nouveau retour"
         subtitle="Dites-nous ce qui vous manque ou ce qui ne va pas — on s'en occupe."
