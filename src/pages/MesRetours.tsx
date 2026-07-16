@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useQuery } from "convex/react";
 import { Link } from "react-router-dom";
-import { Inbox, MessageSquarePlus } from "lucide-react";
+import { Inbox, MessageSquare, MessageSquarePlus } from "lucide-react";
 import { api } from "../../convex/_generated/api";
-import { Doc } from "../../convex/_generated/dataModel";
+import { Doc, Id } from "../../convex/_generated/dataModel";
 import { PageHeader } from "../components/crm/PageHeader";
+import { FeedbackDetail } from "../components/FeedbackDetail";
 import { Button } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
 import { FullSpinner } from "../components/ui/Spinner";
@@ -28,6 +30,7 @@ import { CONTAINER } from "../lib/layout";
  */
 export function MesRetours() {
   const items = useQuery(api.feedback.listMine, {});
+  const [openId, setOpenId] = useState<Id<"feedback"> | null>(null);
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)] flex-col">
@@ -62,25 +65,40 @@ export function MesRetours() {
         ) : (
           <div className="grid gap-5 lg:grid-cols-2">
             {items.map((item) => (
-              <BigFeedbackCard key={item._id} item={item} />
+              <BigFeedbackCard
+                key={item._id}
+                item={item}
+                onOpen={() => setOpenId(item._id)}
+              />
             ))}
           </div>
         )}
       </div>
+
+      <FeedbackDetail id={openId} onClose={() => setOpenId(null)} />
     </div>
   );
 }
 
-function BigFeedbackCard({ item }: { item: Doc<"feedback"> }) {
+/** Card d'un retour. Cliquable : ouvre la fiche et sa conversation. */
+function BigFeedbackCard({
+  item,
+  onOpen,
+}: {
+  item: Doc<"feedback"> & { commentCount: number; teamReplyCount: number };
+  onOpen: () => void;
+}) {
   const type = item.type as FeedbackType;
   const status = item.status as FeedbackStatus;
   const Icon = TYPE_ICONS[type];
   const app = appByKey(item.app);
 
   return (
-    <article
+    <button
+      type="button"
+      onClick={onOpen}
       style={{ backgroundColor: TYPE_COLORS[type] }}
-      className="flex flex-col rounded-2xl p-6 text-white shadow-lg ring-1 ring-black/10"
+      className="flex flex-col rounded-2xl p-6 text-left text-white shadow-lg ring-1 ring-black/10 transition hover:-translate-y-0.5 hover:shadow-xl"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -109,20 +127,15 @@ function BigFeedbackCard({ item }: { item: Doc<"feedback"> }) {
         {item.description}
       </p>
 
-      {item.adminNote && (
-        <div className="mt-5 rounded-xl bg-white/15 p-4 ring-1 ring-white/20">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-white/70">
-            Réponse de l'équipe
-          </p>
-          <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-white">
-            {item.adminNote}
-          </p>
-        </div>
-      )}
-
-      <div className="mt-auto flex items-center gap-3 pt-5 text-[11px] text-white/75">
+      <div className="mt-auto flex flex-wrap items-center gap-3 pt-5 text-[11px] text-white/80">
         <span title={formatDateTime(item.createdAt)}>Envoyé {formatRelative(item.createdAt)}</span>
+        {item.teamReplyCount > 0 && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/25 px-2 py-0.5 font-bold text-white">
+            <MessageSquare className="h-3 w-3" />
+            {item.teamReplyCount} réponse{item.teamReplyCount > 1 ? "s" : ""} de l'équipe
+          </span>
+        )}
       </div>
-    </article>
+    </button>
   );
 }

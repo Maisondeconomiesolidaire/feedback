@@ -23,7 +23,10 @@ export type FeedbackType =
   | "amelioration"
   | "question";
 
-export type FeedbackStatus = "nouveau" | "en_cours" | "termine" | "refuse";
+export type FeedbackStatus = "nouveau" | "en_cours" | "termine";
+
+/** Ordre des colonnes du kanban et des filtres. */
+export const FEEDBACK_STATUSES: FeedbackStatus[] = ["nouveau", "en_cours", "termine"];
 
 export type FeedbackAppKey =
   | "mesoutils"
@@ -90,22 +93,22 @@ export function typeBadgeStyle(type: FeedbackType): CSSProperties {
 }
 
 /** Colonnes du kanban, dans l'ordre d'avancement. */
+/** Colonnes du kanban — libellés alignés sur STATUS_LABELS. */
 export const STAGES: { key: FeedbackStatus; label: string; accent: string }[] = [
-  { key: "nouveau", label: "Nouveau", accent: "#317fa0" },
-  { key: "en_cours", label: "En cours", accent: "#a78bfa" },
-  { key: "termine", label: "Terminé", accent: "#196b24" },
+  { key: "nouveau", label: "En attente", accent: "#317fa0" },
+  { key: "en_cours", label: "En cours", accent: "#b8860b" },
+  { key: "termine", label: "Terminée", accent: "#196b24" },
 ];
 
+/** La valeur `nouveau` est historique en base ; on l'affiche « En attente ». */
 export const STATUS_LABELS: Record<FeedbackStatus, string> = {
-  nouveau: "Nouveau",
+  nouveau: "En attente",
   en_cours: "En cours",
-  termine: "Terminé",
-  refuse: "Refusé",
+  termine: "Terminée",
 };
 
 export const STATUS_COLORS: Record<FeedbackStatus, string> = {
   nouveau: "#317fa0",
-  en_cours: "#a78bfa",
+  en_cours: "#b8860b",
   termine: "#196b24",
-  refuse: "#ef4444",
 };

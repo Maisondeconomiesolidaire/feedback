@@ -1,3 +1,4 @@
+import { MessageSquare } from "lucide-react";
 import { Doc } from "../../convex/_generated/dataModel";
 import {
   TYPE_COLORS,
@@ -16,7 +17,8 @@ export function FeedbackCard({
   item,
   onOpen,
 }: {
-  item: Doc<"feedback">;
+  /** `commentCount` vient de `feedback.list`, pas de la table. */
+  item: Doc<"feedback"> & { commentCount: number };
   onOpen: () => void;
 }) {
   const type = item.type as FeedbackType;
@@ -73,9 +75,10 @@ export function FeedbackCard({
 
       <div className="mt-2.5 flex items-center gap-3 text-[11px] text-white/80">
         <span>{formatRelative(item.createdAt)}</span>
-        {item.adminNote && (
-          <span className="ml-auto rounded bg-white/20 px-1.5 py-0.5 font-medium text-white">
-            Répondu
+        {item.commentCount > 0 && (
+          <span className="ml-auto inline-flex items-center gap-1 rounded bg-white/20 px-1.5 py-0.5 font-medium text-white">
+            <MessageSquare className="h-3 w-3" />
+            {item.commentCount}
           </span>
         )}
       </div>

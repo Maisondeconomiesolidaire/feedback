@@ -47,7 +47,12 @@ export function Drawer({
   if (!open) return null;
 
   return createPortal(
-    <>
+    /* Le portail sort de l'arbre React et atterrit sur <body> : sans
+       `crm-light` ici, les variables --crm-* (définies par le layout) sont
+       introuvables et le panneau se retrouvait transparent, laissant voir le
+       kanban au travers. `contents` n'insère aucune boîte, les `fixed` des
+       enfants restent calés sur le viewport. */
+    <div className="crm-light contents">
       <div
         className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-[2px] animate-fade-in"
         onClick={onClose}
@@ -99,7 +104,7 @@ export function Drawer({
           </div>
         )}
       </div>
-    </>,
+    </div>,
     document.body,
   );
 }
