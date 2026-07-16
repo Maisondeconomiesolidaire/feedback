@@ -102,17 +102,19 @@ function BigFeedbackCard({
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/20">
-            <Icon className="h-5 w-5" />
+          {/* Logo de l'app concernée, sur fond blanc : les logos sont dessinés
+              pour un fond clair et deviennent illisibles sur la couleur du type.
+              Repli sur l'icône du type si l'app est inconnue. */}
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white p-1.5">
+            {app ? (
+              <img src={app.logoSrc} alt="" className="h-full w-full object-contain" />
+            ) : (
+              <Icon className="h-5 w-5 text-[#1f1b18]" />
+            )}
           </span>
           <div className="min-w-0">
             <h3 className="text-lg font-bold leading-tight">{TYPE_LABELS[type]}</h3>
-            {app && (
-              <p className="mt-0.5 inline-flex items-center gap-1.5 text-xs text-white/80">
-                <img src={app.logoSrc} alt="" className="h-3.5 w-3.5 rounded-sm object-contain" />
-                {app.label}
-              </p>
-            )}
+            {app && <p className="mt-0.5 text-xs text-white/80">{app.label}</p>}
           </div>
         </div>
         <span

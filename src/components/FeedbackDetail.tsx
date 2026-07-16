@@ -204,11 +204,6 @@ export function FeedbackDetail({
                         <p className="truncate text-xs font-semibold text-zinc-100">
                           {authorDisplayName(comment.authorName, comment.authorEmail)}
                         </p>
-                        {comment.fromTeam && (
-                          <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                            Équipe
-                          </span>
-                        )}
                         <span className="ml-auto shrink-0 text-[11px] text-zinc-400">
                           {formatDateTime(comment.createdAt)}
                         </span>

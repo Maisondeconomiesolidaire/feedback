@@ -42,7 +42,7 @@ export function AppLayout() {
                 <NavItem
                   to="/kanban"
                   icon={<KanbanSquare className="h-4 w-4" />}
-                  label="Kanban"
+                  label="Tableau de bord"
                 />
               )}
             </nav>
