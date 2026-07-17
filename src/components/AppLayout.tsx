@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { UserButton } from "@clerk/clerk-react";
 import { useQuery } from "convex/react";
-import { KanbanSquare, Menu, MessageSquarePlus, Inbox, X } from "lucide-react";
+import { KanbanSquare, Lock, Menu, MessageSquarePlus, Inbox, X } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { AppSwitcher } from "./AppSwitcher";
+import { EmptyState } from "./ui/EmptyState";
+import { FullSpinner } from "./ui/Spinner";
 import { cn } from "../lib/cn";
 
 /**
@@ -16,12 +18,12 @@ import { cn } from "../lib/cn";
  * variables --crm-* et inverse l'échelle zinc pour un fond clair. Sans elle,
  * les `text-zinc-100` restent gris très clair sur blanc — illisibles.
  *
- * L'entrée « Tableau de bord » n'apparaît que pour l'équipe produit
- * (`amIFeedbackAdmin`) ; ce n'est qu'un confort d'affichage, `feedback.list`
+ * L'entrée « Tableau de bord » n'apparaît qu'aux comptes ayant le droit
+ * `feedback:kanban` ; ce n'est qu'un confort d'affichage, `feedback.list`
  * refuse la requête côté serveur pour tout autre compte.
  */
 export function AppLayout() {
-  const isAdmin = useQuery(api.feedback.amIFeedbackAdmin, {});
+  const access = useQuery(api.feedback.myFeedbackAccess, {});
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -30,7 +32,23 @@ export function AppLayout() {
     setMobileOpen(false);
   }, [location.pathname]);
 
-  const sidebar = <SidebarContent isAdmin={isAdmin === true} />;
+  if (access === undefined) return <FullSpinner label="Vérification des droits…" />;
+
+  // Feedback est une fonctionnalité comme une autre : sans `feedback:retours`,
+  // l'app n'a rien à montrer et toutes ses requêtes seraient refusées.
+  if (!access.canOpen) {
+    return (
+      <div className="crm-light flex min-h-screen items-center justify-center bg-[var(--crm-bg)] px-4">
+        <EmptyState
+          icon={<Lock className="h-10 w-10" />}
+          title="Accès non attribué"
+          description="L'application Feedback ne vous a pas été attribuée. Demandez le droit « Mes retours » à un administrateur depuis Mes Outils."
+        />
+      </div>
+    );
+  }
+
+  const sidebar = <SidebarContent isAdmin={access.canModerate} />;
 
   return (
     <div className="crm-light min-h-screen bg-[var(--crm-bg)] text-zinc-100 lg:pl-64">

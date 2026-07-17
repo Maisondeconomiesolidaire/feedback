@@ -27,7 +27,8 @@ import { CONTAINER } from "../lib/layout";
  * plutôt qu'une erreur brute.
  */
 export function Kanban() {
-  const isAdmin = useQuery(api.feedback.amIFeedbackAdmin, {});
+  const access = useQuery(api.feedback.myFeedbackAccess, {});
+  const isAdmin = access?.canModerate;
   const items = useQuery(api.feedback.list, isAdmin ? {} : "skip");
 
   const [typeFilter, setTypeFilter] = useState<FeedbackType | null>(null);

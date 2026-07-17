@@ -26,13 +26,12 @@ type Access = {
 /**
  * Applications réellement accessibles à l'utilisateur — mêmes règles que le
  * portail Mes Outils : les droits vivent dans `crmPermissions`, namespacés par
- * app. L'app « Feedback » elle-même est volontairement absente de cette liste :
- * elle est ouverte à tous et n'a pas de `pageKey`.
+ * app — Feedback comprise, désormais attribuable comme les autres.
  */
 function appCanAccess(access: Access, key: FeedbackAppKey): boolean {
   if (access.isAdmin || access.bootstrapMode) return true;
   if (!access.isStaff) return false;
-  if (key === "feedback") return true;
+  if (key === "feedback") return access.grants.some((g) => g.pageKey.startsWith("feedback:"));
   if (key === "mesoutils") return access.grants.some((g) => g.pageKey.startsWith("mesoutils:"));
   if (key === "klyde") return access.grants.some((g) => g.pageKey.startsWith("klyde:"));
   if (key === "cycleenbray") return access.grants.some((g) => g.pageKey.startsWith("cycle:"));
