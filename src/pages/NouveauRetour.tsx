@@ -3,7 +3,6 @@ import { useMutation } from "convex/react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Check, Loader2, Send } from "lucide-react";
 import { api } from "../../convex/_generated/api";
-import { PageHeader } from "../components/crm/PageHeader";
 import { Button } from "../components/ui/Button";
 import { APPS, appByKey } from "../lib/apps";
 import {
@@ -21,7 +20,7 @@ import { CONTAINER } from "../lib/layout";
 type Step = 1 | 2 | 3;
 
 const STEP_TITLES: Record<Step, string> = {
-  1: "Quelle application ?",
+  1: "Votre retour concerne quelle application ?",
   2: "De quel type de retour s'agit-il ?",
   3: "Décrivez votre retour",
 };
@@ -76,17 +75,16 @@ export function NouveauRetour() {
 
   return (
     <div className="flex min-h-[calc(100vh-3.5rem)] lg:min-h-screen flex-col">
-      <PageHeader
-        title="Nouveau retour"
-        subtitle="Dites-nous ce qui vous manque ou ce qui ne va pas — on s'en occupe."
-      />
-
+      {/* Pas de bandeau de page ici : la navigation dit déjà « Nouveau retour »,
+          et l'assistant doit s'ouvrir directement sur sa question. */}
       <div className={cn(CONTAINER, "flex-1 py-8")}>
-        <Steps step={step} app={app} type={type} onGoTo={setStep} />
-
-        <h2 className="mt-8 text-2xl font-bold tracking-tight text-zinc-100">
+        <h2 className="text-2xl font-bold tracking-tight text-zinc-100">
           {STEP_TITLES[step]}
         </h2>
+
+        <div className="mt-4">
+          <Steps step={step} app={app} type={type} onGoTo={setStep} />
+        </div>
 
         {step === 1 && (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
