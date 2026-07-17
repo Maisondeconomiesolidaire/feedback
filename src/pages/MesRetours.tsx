@@ -30,6 +30,7 @@ import { CONTAINER } from "../lib/layout";
  */
 export function MesRetours() {
   const items = useQuery(api.feedback.listMine, {});
+  const pending = useQuery(api.feedback.pendingCount, {});
   const [openId, setOpenId] = useState<Id<"feedback"> | null>(null);
 
   return (
@@ -47,6 +48,8 @@ export function MesRetours() {
       />
 
       <div className={cn(CONTAINER, "flex-1 py-8")}>
+        <WorkloadBanner pending={pending} />
+
         {items === undefined ? (
           <FullSpinner label="Chargement de vos retours…" />
         ) : items.length === 0 ? (
@@ -77,6 +80,37 @@ export function MesRetours() {
 
       <FeedbackDetail id={openId} onClose={() => setOpenId(null)} />
     </div>
+  );
+}
+
+/**
+ * Charge de travail annoncée à tous : sans repère, un retour sans réponse
+ * laisse penser qu'il est ignoré. Le compte porte sur tous les retours en
+ * attente ou en cours, pas seulement ceux de l'utilisateur.
+ */
+function WorkloadBanner({ pending }: { pending: number | undefined }) {
+  if (pending === undefined) return null;
+  return (
+    <section className="mb-6 rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-surface-2)] p-6">
+      <p className="text-2xl font-bold tracking-tight text-zinc-100 sm:text-3xl">
+        {pending === 0 ? (
+          <>Selim n'a aucun retour à traiter&nbsp;: c'est le moment d'en envoyer un.</>
+        ) : (
+          <>
+            Selim a actuellement{" "}
+            <span className="text-brand-600">
+              {pending} retour{pending > 1 ? "s" : ""}
+            </span>{" "}
+            à traiter.
+          </>
+        )}
+      </p>
+      {pending > 0 && (
+        <p className="mt-2 text-sm text-zinc-400">
+          Votre demande sera traitée dès que possible — vous serez prévenu ici même.
+        </p>
+      )}
+    </section>
   );
 }
 
