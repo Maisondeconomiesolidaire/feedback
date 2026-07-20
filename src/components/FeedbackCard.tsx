@@ -1,9 +1,12 @@
 import { MessageSquare } from "lucide-react";
 import { Doc } from "../../convex/_generated/dataModel";
 import {
+  PRIORITY_ICONS,
+  PRIORITY_LABELS,
   TYPE_COLORS,
   TYPE_ICONS,
   TYPE_SHORT_LABELS,
+  priorityOf,
   type FeedbackType,
 } from "../lib/constants";
 import { appByKey } from "../lib/apps";
@@ -23,6 +26,8 @@ export function FeedbackCard({
 }) {
   const type = item.type as FeedbackType;
   const Icon = TYPE_ICONS[type];
+  const priority = priorityOf(item);
+  const PriorityIcon = PRIORITY_ICONS[priority];
   const app = appByKey(item.app);
 
   return (
@@ -32,10 +37,16 @@ export function FeedbackCard({
       className="block w-full text-left rounded-xl p-3 text-white shadow-sm ring-1 ring-black/10 transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
     >
       <div className="flex items-start justify-between gap-3">
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold">
-          <Icon className="h-3.5 w-3.5" />
-          {TYPE_SHORT_LABELS[type]}
-        </span>
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold">
+            <Icon className="h-3.5 w-3.5" />
+            {TYPE_SHORT_LABELS[type]}
+          </span>
+          <span className="inline-flex items-center gap-1 rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-bold text-white">
+            <PriorityIcon className="h-3 w-3" />
+            {PRIORITY_LABELS[priority]}
+          </span>
+        </div>
         <div className="flex shrink-0 items-center gap-2">
           {app && (
             <span className="inline-flex items-center gap-1 rounded bg-white/18 px-1.5 py-0.5 text-[10px] font-medium text-white/90">

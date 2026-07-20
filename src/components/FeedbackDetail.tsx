@@ -8,12 +8,17 @@ import { Button } from "./ui/Button";
 import { FullSpinner } from "./ui/Spinner";
 import { appByKey } from "../lib/apps";
 import {
+  FEEDBACK_PRIORITIES,
   FEEDBACK_STATUSES,
+  PRIORITY_COLORS,
+  PRIORITY_ICONS,
+  PRIORITY_LABELS,
   STATUS_COLORS,
   STATUS_LABELS,
   TYPE_COLORS,
   TYPE_ICONS,
   TYPE_LABELS,
+  priorityOf,
   type FeedbackStatus,
   type FeedbackType,
 } from "../lib/constants";
@@ -37,6 +42,7 @@ export function FeedbackDetail({
   const thread = useQuery(api.feedback.thread, id ? { id } : "skip");
   const addComment = useMutation(api.feedback.addComment);
   const setStatus = useMutation(api.feedback.setStatus);
+  const setPriority = useMutation(api.feedback.setPriority);
   const remove = useMutation(api.feedback.remove);
 
   const [message, setMessage] = useState("");
@@ -169,6 +175,36 @@ export function FeedbackDetail({
                   {STATUS_LABELS[item.status as FeedbackStatus]}
                 </span>
               )}
+            </div>
+
+            {/* Urgence : toujours modifiable ici. `thread` n'est lisible que
+                par l'auteur et l'équipe produit, et les deux ont le droit de
+                la revoir — le serveur re-vérifie de toute façon. */}
+            <div>
+              <SectionLabel>Urgence</SectionLabel>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {FEEDBACK_PRIORITIES.map((priority) => {
+                  const current = priorityOf(item) === priority;
+                  const Icon = PRIORITY_ICONS[priority];
+                  return (
+                    <button
+                      key={priority}
+                      type="button"
+                      onClick={() => setPriority({ id: item._id, priority })}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                        current
+                          ? "text-white"
+                          : "bg-[var(--crm-surface-2)] text-zinc-400 hover:text-zinc-100",
+                      )}
+                      style={current ? { backgroundColor: PRIORITY_COLORS[priority] } : undefined}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {PRIORITY_LABELS[priority]}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Conversation */}

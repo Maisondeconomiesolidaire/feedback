@@ -1,5 +1,9 @@
 import type { CSSProperties } from "react";
 import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Minus,
   Sparkles,
   Bug,
   Wand2,
@@ -24,6 +28,66 @@ export type FeedbackType =
   | "question";
 
 export type FeedbackStatus = "nouveau" | "en_cours" | "termine";
+
+/** Urgence déclarée par l'auteur du retour. */
+export type FeedbackPriority = "basse" | "normale" | "haute" | "urgente";
+
+/** Ordre d'affichage : du moins au plus urgent. */
+export const FEEDBACK_PRIORITIES: FeedbackPriority[] = [
+  "basse",
+  "normale",
+  "haute",
+  "urgente",
+];
+
+export const PRIORITY_LABELS: Record<FeedbackPriority, string> = {
+  basse: "Basse",
+  normale: "Normale",
+  haute: "Haute",
+  urgente: "Urgente",
+};
+
+export const PRIORITY_DESCRIPTIONS: Record<FeedbackPriority, string> = {
+  basse: "Ça peut attendre, c'est du confort.",
+  normale: "À traiter dans les prochains jours, sans urgence.",
+  haute: "Ça me gêne au quotidien, j'aimerais une réponse rapide.",
+  urgente: "Je suis bloqué·e, je ne peux plus travailler.",
+};
+
+export const PRIORITY_COLORS: Record<FeedbackPriority, string> = {
+  basse: "#4b6b7a",
+  normale: "#317fa0",
+  haute: "#b8860b",
+  urgente: "#a0315a",
+};
+
+export const PRIORITY_ICONS: Record<FeedbackPriority, LucideIcon> = {
+  basse: ChevronDown,
+  normale: Minus,
+  haute: ChevronUp,
+  urgente: AlertTriangle,
+};
+
+/**
+ * Urgence d'un retour, avec repli sur « normale » : le champ est optionnel en
+ * base et les retours déposés avant cette fonctionnalité n'en portent pas.
+ */
+export function priorityOf(item: { priority?: string }): FeedbackPriority {
+  const value = item.priority;
+  return FEEDBACK_PRIORITIES.includes(value as FeedbackPriority)
+    ? (value as FeedbackPriority)
+    : "normale";
+}
+
+/** Styles inline pour un badge teinté à la couleur de l'urgence. */
+export function priorityBadgeStyle(priority: FeedbackPriority): CSSProperties {
+  const c = PRIORITY_COLORS[priority];
+  return {
+    backgroundColor: `${c}22`,
+    color: c,
+    boxShadow: `inset 0 0 0 1px ${c}55`,
+  };
+}
 
 /** Ordre des colonnes du kanban et des filtres. */
 export const FEEDBACK_STATUSES: FeedbackStatus[] = ["nouveau", "en_cours", "termine"];

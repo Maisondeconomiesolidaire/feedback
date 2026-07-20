@@ -6,23 +6,30 @@ import { api } from "../../convex/_generated/api";
 import { Button } from "../components/ui/Button";
 import { APPS, appByKey } from "../lib/apps";
 import {
+  FEEDBACK_PRIORITIES,
   FEEDBACK_TYPES,
+  PRIORITY_COLORS,
+  PRIORITY_DESCRIPTIONS,
+  PRIORITY_ICONS,
+  PRIORITY_LABELS,
   TYPE_COLORS,
   TYPE_DESCRIPTIONS,
   TYPE_ICONS,
   TYPE_LABELS,
   type FeedbackAppKey,
+  type FeedbackPriority,
   type FeedbackType,
 } from "../lib/constants";
 import { cn } from "../lib/cn";
 import { CONTAINER } from "../lib/layout";
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4;
 
 const STEP_TITLES: Record<Step, string> = {
   1: "Votre retour concerne quelle application ?",
   2: "De quel type de retour s'agit-il ?",
-  3: "Décrivez votre retour",
+  3: "Quelle est l'urgence ?",
+  4: "Décrivez votre retour",
 };
 
 /**
@@ -41,11 +48,13 @@ export function NouveauRetour() {
   const [step, setStep] = useState<Step>(1);
   const [app, setApp] = useState<FeedbackAppKey | null>(null);
   const [type, setType] = useState<FeedbackType | null>(null);
+  const [priority, setPriority] = useState<FeedbackPriority | null>(null);
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = app !== null && type !== null && description.trim() !== "" && !saving;
+  const canSubmit =
+    app !== null && type !== null && priority !== null && description.trim() !== "" && !saving;
 
   function chooseApp(key: FeedbackAppKey) {
     setApp(key);
@@ -57,15 +66,20 @@ export function NouveauRetour() {
     setStep(3);
   }
 
+  function choosePriority(key: FeedbackPriority) {
+    setPriority(key);
+    setStep(4);
+  }
+
   async function handleSubmit() {
-    if (app === null || type === null) return;
+    if (app === null || type === null || priority === null) return;
     const trimmed = description.trim();
     if (trimmed === "") return;
 
     setSaving(true);
     setError(null);
     try {
-      await submit({ app, type, description: trimmed });
+      await submit({ app, type, priority, description: trimmed });
       navigate("/");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Envoi impossible pour le moment.");
@@ -83,7 +97,7 @@ export function NouveauRetour() {
         </h2>
 
         <div className="mt-4">
-          <Steps step={step} app={app} type={type} onGoTo={setStep} />
+          <Steps step={step} app={app} type={type} priority={priority} onGoTo={setStep} />
         </div>
 
         {step === 1 && (
@@ -139,6 +153,35 @@ export function NouveauRetour() {
         )}
 
         {step === 3 && (
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            {FEEDBACK_PRIORITIES.map((key) => {
+              const Icon = PRIORITY_ICONS[key];
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => choosePriority(key)}
+                  aria-pressed={priority === key}
+                  style={{ backgroundColor: PRIORITY_COLORS[key] }}
+                  className={cn(
+                    "rounded-2xl p-5 text-left text-white shadow-sm transition hover:brightness-110",
+                    priority === key ? "ring-2 ring-brand-600" : "ring-1 ring-black/10",
+                  )}
+                >
+                  <span className="inline-flex items-center gap-2 text-base font-semibold">
+                    <Icon className="h-5 w-5" />
+                    {PRIORITY_LABELS[key]}
+                  </span>
+                  <p className="mt-2 text-sm leading-5 text-white/85">
+                    {PRIORITY_DESCRIPTIONS[key]}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {step === 4 && (
           <>
             <textarea
               value={description}
@@ -156,7 +199,7 @@ export function NouveauRetour() {
             )}
 
             <div className="mt-6 flex items-center justify-between gap-3">
-              <Button variant="secondary" onClick={() => setStep(2)} disabled={saving}>
+              <Button variant="secondary" onClick={() => setStep(3)} disabled={saving}>
                 <ArrowLeft className="h-4 w-4" /> Retour
               </Button>
               <Button size="lg" onClick={handleSubmit} disabled={!canSubmit}>
@@ -171,11 +214,11 @@ export function NouveauRetour() {
           </>
         )}
 
-        {step !== 3 && (
+        {step !== 4 && (
           <div className="mt-6">
             <Button
               variant="secondary"
-              onClick={() => (step === 1 ? navigate("/") : setStep(1))}
+              onClick={() => (step === 1 ? navigate("/") : setStep((step - 1) as Step))}
             >
               <ArrowLeft className="h-4 w-4" /> {step === 1 ? "Annuler" : "Retour"}
             </Button>
@@ -194,17 +237,20 @@ function Steps({
   step,
   app,
   type,
+  priority,
   onGoTo,
 }: {
   step: Step;
   app: FeedbackAppKey | null;
   type: FeedbackType | null;
+  priority: FeedbackPriority | null;
   onGoTo: (step: Step) => void;
 }) {
   const items: Array<{ step: Step; label: string; value: string | null }> = [
     { step: 1, label: "Application", value: app ? appByKey(app)?.label ?? null : null },
     { step: 2, label: "Type", value: type ? TYPE_LABELS[type] : null },
-    { step: 3, label: "Description", value: null },
+    { step: 3, label: "Urgence", value: priority ? PRIORITY_LABELS[priority] : null },
+    { step: 4, label: "Description", value: null },
   ];
 
   return (

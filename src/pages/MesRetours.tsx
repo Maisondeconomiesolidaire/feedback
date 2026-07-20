@@ -11,11 +11,14 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { FullSpinner } from "../components/ui/Spinner";
 import { appByKey } from "../lib/apps";
 import {
+  PRIORITY_ICONS,
+  PRIORITY_LABELS,
   STATUS_COLORS,
   STATUS_LABELS,
   TYPE_COLORS,
   TYPE_ICONS,
   TYPE_LABELS,
+  priorityOf,
   type FeedbackStatus,
   type FeedbackType,
 } from "../lib/constants";
@@ -124,7 +127,9 @@ function BigFeedbackCard({
 }) {
   const type = item.type as FeedbackType;
   const status = item.status as FeedbackStatus;
+  const priority = priorityOf(item);
   const Icon = TYPE_ICONS[type];
+  const PriorityIcon = PRIORITY_ICONS[priority];
   const app = appByKey(item.app);
 
   return (
@@ -151,12 +156,20 @@ function BigFeedbackCard({
             {app && <p className="mt-0.5 text-xs text-white/80">{app.label}</p>}
           </div>
         </div>
-        <span
-          className="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold text-white ring-1 ring-white/30"
-          style={{ backgroundColor: STATUS_COLORS[status] }}
-        >
-          {STATUS_LABELS[status]}
-        </span>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <span
+            className="rounded-full px-2.5 py-1 text-[11px] font-bold text-white ring-1 ring-white/30"
+            style={{ backgroundColor: STATUS_COLORS[status] }}
+          >
+            {STATUS_LABELS[status]}
+          </span>
+          {/* Urgence en blanc translucide : la couleur de fond est déjà celle
+              du type, un badge coloré de plus deviendrait illisible. */}
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-bold text-white">
+            <PriorityIcon className="h-3 w-3" />
+            {PRIORITY_LABELS[priority]}
+          </span>
+        </div>
       </div>
 
       <p className="mt-5 whitespace-pre-wrap text-sm leading-6 text-white/95">
