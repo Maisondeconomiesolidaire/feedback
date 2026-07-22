@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Loader2, Send, Trash2 } from "lucide-react";
+import { ExternalLink, Loader2, Paperclip, Send, Trash2 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { Drawer } from "./ui/Drawer";
@@ -140,6 +140,18 @@ export function FeedbackDetail({
             <p className="whitespace-pre-wrap rounded-xl bg-[var(--crm-surface-2)] p-4 text-sm leading-6 text-zinc-100">
               {item.description}
             </p>
+            {item.attachmentUrls?.length ? (
+              <div>
+                <SectionLabel>Pièces jointes</SectionLabel>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {item.attachmentUrls.map((url: string, index: number) => (
+                    <a key={url} href={url} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-xl border border-[var(--crm-border)] bg-[var(--crm-surface-2)] p-3 text-sm text-zinc-100 hover:bg-[var(--crm-surface-3)]">
+                      <Paperclip className="h-4 w-4" /> Pièce {index + 1} <ExternalLink className="ml-auto h-3.5 w-3.5" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             {/* Statut : modifiable par l'équipe, informatif pour l'auteur */}
             <div>

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation } from "convex/react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, Loader2, Send } from "lucide-react";
+import { ArrowLeft, Check, Loader2, Paperclip, Send, X } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { Button } from "../components/ui/Button";
 import { APPS, appByKey } from "../lib/apps";
@@ -22,6 +22,7 @@ import {
 } from "../lib/constants";
 import { cn } from "../lib/cn";
 import { CONTAINER } from "../lib/layout";
+import type { Id } from "../../convex/_generated/dataModel";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -44,17 +45,42 @@ const STEP_TITLES: Record<Step, string> = {
 export function NouveauRetour() {
   const navigate = useNavigate();
   const submit = useMutation(api.feedback.submit);
+  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
 
   const [step, setStep] = useState<Step>(1);
   const [app, setApp] = useState<FeedbackAppKey | null>(null);
   const [type, setType] = useState<FeedbackType | null>(null);
   const [priority, setPriority] = useState<FeedbackPriority | null>(null);
   const [description, setDescription] = useState("");
+  const [attachments, setAttachments] = useState<Id<"_storage">[]>([]);
+  const [attachmentNames, setAttachmentNames] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const canSubmit =
-    app !== null && type !== null && priority !== null && description.trim() !== "" && !saving;
+    app !== null && type !== null && priority !== null && description.trim() !== "" && !saving && !uploading;
+
+  async function addAttachments(files: FileList | null) {
+    if (!files?.length) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const selected = Array.from(files).slice(0, Math.max(0, 8 - attachments.length));
+      const uploaded = await Promise.all(selected.map(async (file) => {
+        const url = await generateUploadUrl();
+        const response = await fetch(url, { method: "POST", headers: { "Content-Type": file.type }, body: file });
+        if (!response.ok) throw new Error("Échec de l'envoi de la pièce jointe.");
+        return (await response.json() as { storageId: Id<"_storage"> }).storageId;
+      }));
+      setAttachments((current) => [...current, ...uploaded]);
+      setAttachmentNames((current) => [...current, ...selected.map((file) => file.name)]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Échec de l'envoi de la pièce jointe.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   function chooseApp(key: FeedbackAppKey) {
     setApp(key);
@@ -79,7 +105,7 @@ export function NouveauRetour() {
     setSaving(true);
     setError(null);
     try {
-      await submit({ app, type, priority, description: trimmed });
+      await submit({ app, type, priority, description: trimmed, attachments: attachments.length ? attachments : undefined });
       navigate("/");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Envoi impossible pour le moment.");
@@ -191,6 +217,25 @@ export function NouveauRetour() {
               placeholder="Le plus précis possible : ce que vous faisiez, ce que vous attendiez, ce qui s'est passé…"
               className="mt-6 w-full rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-surface-2)] p-4 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/40"
             />
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-surface-2)] px-3 py-2 text-sm font-medium text-zinc-100 hover:bg-[var(--crm-surface-3)]">
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                Ajouter une pièce jointe
+                <input className="sr-only" type="file" multiple disabled={uploading || attachments.length >= 8} onChange={(event) => void addAttachments(event.target.files)} />
+              </label>
+              <span className="text-xs text-zinc-400">Captures, photos ou documents · 8 maximum</span>
+            </div>
+            {attachmentNames.length ? (
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {attachmentNames.map((name, index) => (
+                  <li key={`${name}-${index}`} className="inline-flex items-center gap-1 rounded-full bg-[var(--crm-surface-3)] px-2.5 py-1 text-xs text-zinc-100">
+                    <Paperclip className="h-3 w-3" /> {name}
+                    <button type="button" aria-label={`Retirer ${name}`} onClick={() => { setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index)); setAttachmentNames((current) => current.filter((_, itemIndex) => itemIndex !== index)); }}><X className="h-3 w-3" /></button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
 
             {error && (
               <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm font-medium text-red-700 ring-1 ring-red-200">
