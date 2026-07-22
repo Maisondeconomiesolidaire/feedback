@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { UserButton } from "@clerk/clerk-react";
-import { useQuery } from "convex/react";
-import { KanbanSquare, Lock, Menu, MessageSquarePlus, Inbox, X } from "lucide-react";
+import { UserButton, useUser } from "@clerk/clerk-react";
+import { useMutation, useQuery } from "convex/react";
+import { CircleHelp, KanbanSquare, Lock, Menu, MessageSquarePlus, Inbox, X } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { AppSwitcher } from "./AppSwitcher";
 import { EmptyState } from "./ui/EmptyState";
@@ -100,6 +100,10 @@ export function AppLayout() {
 }
 
 function SidebarContent({ isAdmin }: { isAdmin: boolean }) {
+  const { user } = useUser();
+  const points = useQuery(api.points.myPoints, {}) ?? 100;
+  const ensurePoints = useMutation(api.points.ensureMine);
+  useEffect(() => { void ensurePoints({}); }, [ensurePoints]);
   return (
     <>
       <div className="flex h-20 items-center justify-between gap-2 overflow-hidden border-b border-[var(--crm-border)] px-5">
@@ -126,7 +130,10 @@ function SidebarContent({ isAdmin }: { isAdmin: boolean }) {
       </nav>
 
       <div className="hidden border-t border-[var(--crm-border)] p-3 lg:block">
-        <UserButton afterSignOutUrl="/" showName />
+        <Link to="/" className="flex items-center gap-2 rounded-xl bg-[var(--crm-surface-2)] px-3 py-2 text-sm font-semibold text-zinc-900">
+          <span className="truncate">{user?.firstName ?? user?.fullName ?? "Mon profil"}</span>
+          <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-bold text-brand-700">{points} pts <span title="Les points récompensent vos réservations, retours et participations utiles."><CircleHelp className="h-3 w-3" /></span></span>
+        </Link>
       </div>
     </>
   );
