@@ -630,6 +630,20 @@ export default defineSchema(
     .index("by_createdAt", ["createdAt"])
     .index("by_requestId", ["requestId"]),
 
+  /**
+   * Repère de lecture des notifications CRM, **par utilisateur**.
+   *
+   * Le drapeau `read` de `notifications` est global : quand quelqu'un ouvrait
+   * la page, le compteur retombait à zéro pour toute l'équipe. On stocke donc
+   * ici, par compte Clerk, la date jusqu'à laquelle il a tout vu — une
+   * notification postérieure à ce repère lui est « non lue », indépendamment
+   * des autres. Un seul document par utilisateur, pas un par notification.
+   */
+  notificationReads: defineTable({
+    clerkId: v.string(),
+    lastReadAt: v.number(),
+  }).index("by_clerkId", ["clerkId"]),
+
   teamMembers: defineTable({
     name: v.string(),
     role: v.optional(v.string()),
@@ -1433,14 +1447,34 @@ export default defineSchema(
     color: v.optional(v.string()),
     material: v.optional(v.string()),
     price: v.optional(v.number()),
+    // Prix réellement encaissé. Il peut être inférieur au prix affiché après
+    // acceptation d'une offre ; c'est cette valeur qui sert au chiffre d'affaires.
+    actualSalePrice: v.optional(v.number()),
     parcelSize: v.optional(v.string()),
     gender: v.optional(v.string()),
     style: v.optional(v.string()),
     location: v.optional(v.string()),
     sku: v.optional(v.string()),
+    // Article mis en vente sur Vinted (case cochée dans le stock Klyd).
+    vinted: v.optional(v.boolean()),
+    // Date de mise en vente sur Vinted (pour l'alerte « 3 semaines »).
+    vintedAt: v.optional(v.number()),
+    // Date d'envoi de l'alerte email « 3 semaines sur Vinted » (anti-doublon).
+    vintedAlertSentAt: v.optional(v.number()),
+    // Nombre de fois où l'annonce Vinted a été prolongée après l'alerte de 3 semaines.
+    vintedExtensionCount: v.optional(v.number()),
+    vintedLastExtendedAt: v.optional(v.number()),
+    // Décision prise lorsqu'un article sort de Stock B.
+    stockBDisposition: v.optional(v.union(
+      v.literal("vente_exceptionnelle"),
+      v.literal("magasin"),
+    )),
+    // Enseigne à laquelle l'article est rattaché : Klyd ou Mobifrip.
+    outlet: v.optional(v.union(v.literal("klyd"), v.literal("mobifrip"))),
     quantity: v.number(),
     status: v.union(
       v.literal("stock"),
+      v.literal("stock_b"),
       v.literal("en_ligne"),
       v.literal("en_cours_envoi"),
       v.literal("envoye"),
@@ -1552,6 +1586,9 @@ export default defineSchema(
     companyId: v.id("bpCompanies"),
     senderRole: v.union(v.literal("client"), v.literal("staff")),
     senderName: v.string(),
+    // Compte Clerk de l'expéditeur : sert à afficher sa photo de profil (résolue
+    // à la lecture via `users.imageUrl`, toujours à jour).
+    senderClerkId: v.optional(v.string()),
     body: v.string(),
     readByClientAt: v.optional(v.number()),
     readByStaffAt: v.optional(v.number()),
@@ -1829,6 +1866,8 @@ export default defineSchema(
     app: feedbackApp,
     type: feedbackType,
     description: v.string(),
+    /** Captures, photos ou documents fournis avec le retour. */
+    attachments: v.optional(v.array(v.id("_storage"))),
     status: feedbackStatus,
     /** Urgence choisie par l'auteur, modifiable par lui après coup. */
     priority: v.optional(feedbackPriority),
