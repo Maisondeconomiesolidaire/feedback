@@ -5,12 +5,14 @@ import type { QueryCtx, MutationCtx } from "./_generated/server";
 import { feedbackApp, feedbackPriority, feedbackStatus, feedbackType } from "./schema";
 import {
   hasCrmPermission,
+  formatUserName,
   livePhoto,
   livePhotosByClerkId,
   normalizeEmail,
   requireCrmPermission,
   requireUser,
 } from "./lib";
+import { awardEngagementPoints } from "./points";
 
 /**
  * App « Feedback » (feedback.groupemes.fr) — retours des utilisateurs sur les
@@ -38,8 +40,7 @@ function feedbackDisplayName(identity: {
   familyName?: string | null;
   email?: string | null;
 }) {
-  const fullName = [identity.givenName, identity.familyName].filter(Boolean).join(" ").trim();
-  return identity.name?.trim() || fullName || identity.email?.trim() || "L'équipe produit";
+  return formatUserName(identity, "L'équipe produit");
 }
 
 /** Peut traiter les retours (kanban) : statut, réponse d'équipe, suppression. */
@@ -104,7 +105,8 @@ export const pendingCount = query({
 /** Dépôt d'un retour — réservé aux comptes ayant `feedback:retours`. */
 export const submit = mutation({
   args: {
-    app: feedbackApp,
+    /** Absente pour un retour « nouvelle application » : cf. schema.ts. */
+    app: v.optional(feedbackApp),
     type: feedbackType,
     description: v.string(),
     attachments: v.optional(v.array(v.id("_storage"))),
@@ -117,6 +119,11 @@ export const submit = mutation({
     if (description.length === 0) {
       throw new Error("La description est obligatoire.");
     }
+    // Tous les autres types visent une app existante : sans elle, le retour
+    // n'est rattachable à rien dans le kanban.
+    if (args.type !== "nouvelle_application" && args.app === undefined) {
+      throw new Error("L'application concernée est obligatoire.");
+    }
 
     const email = normalizeEmail(identity.email);
     if (email === "") {
@@ -125,7 +132,7 @@ export const submit = mutation({
 
     const now = Date.now();
     const feedbackId = await ctx.db.insert("feedback", {
-      app: args.app,
+      app: args.type === "nouvelle_application" ? undefined : args.app,
       type: args.type,
       description,
       attachments: args.attachments?.slice(0, 8),
@@ -133,17 +140,22 @@ export const submit = mutation({
       priority: args.priority ?? "normale",
       authorClerkId: identity.subject,
       authorEmail: email,
-      authorName: identity.name ?? undefined,
+      authorName: feedbackDisplayName(identity),
       authorImageUrl: identity.pictureUrl ?? undefined,
       createdAt: now,
       updatedAt: now,
     });
+    await awardEngagementPoints(ctx, {
+      clerkId: identity.subject,
+      displayName: feedbackDisplayName(identity),
+      eventKey: `feedback:${feedbackId}`,
+    });
 
     await ctx.scheduler.runAfter(0, internal.mesoutilsEmails.sendFeedbackCreatedEmail, {
-      app: args.app,
+      app: args.type === "nouvelle_application" ? undefined : args.app,
       feedbackType: args.type,
       description,
-      authorName: identity.name ?? undefined,
+      authorName: feedbackDisplayName(identity),
       authorEmail: email,
       authorPhotoUrl: typeof identity.pictureUrl === "string" ? identity.pictureUrl : undefined,
     });
@@ -304,7 +316,7 @@ export const addComment = mutation({
       body,
       authorClerkId: identity.subject,
       authorEmail: email,
-      authorName: identity.name ?? undefined,
+      authorName: feedbackDisplayName(identity),
       authorImageUrl: identity.pictureUrl ?? undefined,
       fromTeam: admin,
       createdAt: now,

@@ -90,8 +90,12 @@ export const APPS: FeedbackApp[] = [
 
 const APPS_BY_KEY = new Map(APPS.map((app) => [app.key, app]));
 
-export function appByKey(key: FeedbackAppKey): FeedbackApp | undefined {
-  return APPS_BY_KEY.get(key);
+/**
+ * Tuile d'une app. La clé peut être absente : les retours de type « nouvelle
+ * application » ne visent aucune app existante et sont stockés sans `app`.
+ */
+export function appByKey(key: FeedbackAppKey | undefined): FeedbackApp | undefined {
+  return key === undefined ? undefined : APPS_BY_KEY.get(key);
 }
 
 export function appLabel(key: FeedbackAppKey): string {

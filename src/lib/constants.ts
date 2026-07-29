@@ -8,6 +8,7 @@ import {
   Bug,
   Wand2,
   HelpCircle,
+  AppWindow,
   type LucideIcon,
 } from "lucide-react";
 
@@ -25,7 +26,14 @@ export type FeedbackType =
   | "fonctionnalite"
   | "probleme"
   | "amelioration"
-  | "question";
+  | "question"
+  | "nouvelle_application";
+
+/**
+ * Seul type de retour qui ne vise aucune app existante : l'assistant saute
+ * alors l'étape « application » et le retour est stocké sans champ `app`.
+ */
+export const NEW_APP_TYPE: FeedbackType = "nouvelle_application";
 
 export type FeedbackStatus = "nouveau" | "en_cours" | "termine";
 
@@ -106,6 +114,7 @@ export const FEEDBACK_TYPES: FeedbackType[] = [
   "probleme",
   "amelioration",
   "question",
+  "nouvelle_application",
 ];
 
 /** Libellé long, tel que présenté à l'utilisateur dans le formulaire. */
@@ -114,6 +123,7 @@ export const TYPE_LABELS: Record<FeedbackType, string> = {
   probleme: "J'ai un problème",
   amelioration: "J'ai une amélioration à proposer",
   question: "J'ai une question",
+  nouvelle_application: "J'ai une idée d'application",
 };
 
 /** Libellé court, pour les badges et les cards du kanban. */
@@ -122,6 +132,7 @@ export const TYPE_SHORT_LABELS: Record<FeedbackType, string> = {
   probleme: "Problème",
   amelioration: "Amélioration",
   question: "Question",
+  nouvelle_application: "Nouvelle application",
 };
 
 export const TYPE_DESCRIPTIONS: Record<FeedbackType, string> = {
@@ -129,6 +140,7 @@ export const TYPE_DESCRIPTIONS: Record<FeedbackType, string> = {
   probleme: "Un bug, une erreur, quelque chose qui ne marche pas comme prévu.",
   amelioration: "Quelque chose qui existe mais qui pourrait être plus simple.",
   question: "Vous ne savez pas comment faire quelque chose.",
+  nouvelle_application: "Un outil qui n'existe pas encore dans l'écosystème et qui vous manque.",
 };
 
 /** Couleur officielle (hex) de chaque type de retour. */
@@ -137,6 +149,7 @@ export const TYPE_COLORS: Record<FeedbackType, string> = {
   probleme: "#a0315a",
   amelioration: "#782170",
   question: "#196b24",
+  nouvelle_application: "#a05a17",
 };
 
 export const TYPE_ICONS: Record<FeedbackType, LucideIcon> = {
@@ -144,6 +157,7 @@ export const TYPE_ICONS: Record<FeedbackType, LucideIcon> = {
   probleme: Bug,
   amelioration: Wand2,
   question: HelpCircle,
+  nouvelle_application: AppWindow,
 };
 
 /** Styles inline pour un badge teinté à la couleur du type. */

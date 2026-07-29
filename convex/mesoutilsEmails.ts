@@ -133,6 +133,16 @@ function detailCard(rows: Array<[string, string]>) {
   return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 22px;padding:16px 18px;background:#f4faf6;border:1px solid #e2ede7;border-radius:14px;">${cells}</table>`;
 }
 
+/** Rappel envoyé à l'acceptation d'une réservation véhicule, avant le retour. */
+function vehicleReturnWarning() {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 22px;padding:16px 18px;background:#fff8e8;border:1px solid #f5d99a;border-radius:14px;">
+    <tr><td>
+      <p style="margin:0 0 7px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:#8a5a00;">À prévoir pour le retour du véhicule</p>
+      <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.55;color:#6b562c;">Au moment de restituer le véhicule, prenez une photo du kilométrage ou notez-le avant de le quitter. Un court retour vous sera demandé : vous pourrez ainsi le compléter sans devoir retourner au véhicule.</p>
+    </td></tr>
+  </table>`;
+}
+
 const dayFmt = new Intl.DateTimeFormat("fr-FR", {
   weekday: "long",
   day: "numeric",
@@ -264,6 +274,7 @@ export const sendReservationEmail = internalAction({
       contentHtml: `
         ${userChip(args.name, args.photoUrl, "Demandeur")}
         ${detailCard(rows)}
+        ${args.assetKind === "vehicle" && args.state === "approved" ? vehicleReturnWarning() : ""}
         ${button(appLink(myReservationsPath), "Voir mes réservations")}
       `,
     });
@@ -684,6 +695,7 @@ const FEEDBACK_TYPE_LABELS: Record<string, string> = {
   probleme: "Problème",
   amelioration: "Amélioration",
   question: "Question",
+  nouvelle_application: "Nouvelle application",
 };
 
 /**
@@ -871,7 +883,8 @@ export const sendFeedbackCommentEmail = internalAction({
 /** Prévient l'équipe produit qu'un nouveau retour vient d'être déposé. */
 export const sendFeedbackCreatedEmail = internalAction({
   args: {
-    app: v.string(),
+    /** Absente pour une idée de « nouvelle application » (aucune app visée). */
+    app: v.optional(v.string()),
     feedbackType: v.string(),
     description: v.string(),
     authorName: v.optional(v.string()),
@@ -879,18 +892,24 @@ export const sendFeedbackCreatedEmail = internalAction({
     authorPhotoUrl: v.optional(v.string()),
   },
   handler: async (_ctx, args) => {
-    const appLabel = FEEDBACK_APP_LABELS[args.app] ?? args.app;
+    const appLabel = args.app
+      ? FEEDBACK_APP_LABELS[args.app] ?? args.app
+      : "Nouvelle application";
     const typeLabel = FEEDBACK_TYPE_LABELS[args.feedbackType] ?? "Retour";
     const authorLabel = args.authorName?.trim() || args.authorEmail;
 
     const html = shell({
-      preheader: `${authorLabel} a déposé un retour sur ${appLabel}.`,
-      heading: "Nouveau retour utilisateur",
-      intro: `Un nouveau retour vient d'être déposé sur <strong>${esc(appLabel)}</strong>.`,
+      preheader: args.app
+        ? `${authorLabel} a déposé un retour sur ${appLabel}.`
+        : `${authorLabel} propose une idée de nouvelle application.`,
+      heading: args.app ? "Nouveau retour utilisateur" : "Idée de nouvelle application",
+      intro: args.app
+        ? `Un nouveau retour vient d'être déposé sur <strong>${esc(appLabel)}</strong>.`
+        : `Une idée d'application vient d'être proposée.`,
       contentHtml: `
         ${userChip(authorLabel, args.authorPhotoUrl, args.authorEmail)}
         ${detailCard([
-          ["Application", appLabel],
+          ...(args.app ? ([["Application", appLabel]] as Array<[string, string]>) : []),
           ["Type", typeLabel],
         ])}
         ${quoteBlock(args.description)}
@@ -898,6 +917,11 @@ export const sendFeedbackCreatedEmail = internalAction({
       `,
     });
 
-    await resendSend(FEEDBACK_INBOX_EMAILS, `Nouveau retour · ${appLabel} (${typeLabel})`, html, FROM);
+    await resendSend(
+      FEEDBACK_INBOX_EMAILS,
+      args.app ? `Nouveau retour · ${appLabel} (${typeLabel})` : `Nouveau retour · ${typeLabel}`,
+      html,
+      FROM,
+    );
   },
 });

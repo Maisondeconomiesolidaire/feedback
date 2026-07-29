@@ -8,6 +8,7 @@ import { APPS, appByKey } from "../lib/apps";
 import {
   FEEDBACK_PRIORITIES,
   FEEDBACK_TYPES,
+  NEW_APP_TYPE,
   PRIORITY_COLORS,
   PRIORITY_DESCRIPTIONS,
   PRIORITY_ICONS,
@@ -27,16 +28,20 @@ import type { Id } from "../../convex/_generated/dataModel";
 type Step = 1 | 2 | 3 | 4;
 
 const STEP_TITLES: Record<Step, string> = {
-  1: "Votre retour concerne quelle application ?",
-  2: "De quel type de retour s'agit-il ?",
+  1: "De quel type de retour s'agit-il ?",
+  2: "Votre retour concerne quelle application ?",
   3: "Quelle est l'urgence ?",
   4: "Décrivez votre retour",
 };
 
 /**
  * Dépôt d'un retour sous forme d'assistant : une décision par écran
- * (application → type → description). Chaque choix fait avancer l'étape, et le
- * fil d'Ariane permet de revenir sur une étape déjà remplie.
+ * (type → application → urgence → description). Chaque choix fait avancer
+ * l'étape, et le fil d'Ariane permet de revenir sur une étape déjà remplie.
+ *
+ * Le type vient en premier parce qu'une **idée de nouvelle application** ne
+ * vise aucune app existante : ce type saute l'étape « application », et le
+ * retour part sans champ `app` (cf. `feedback.submit`).
  *
  * Les applications sont **toutes** proposées, sans filtrer par droits : le but
  * est que n'importe qui puisse remonter un problème, y compris sur une app où
@@ -58,8 +63,16 @@ export function NouveauRetour() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /** Idée d'app : aucune application à choisir, l'étape 2 disparaît. */
+  const skipsApp = type === NEW_APP_TYPE;
+
   const canSubmit =
-    app !== null && type !== null && priority !== null && description.trim() !== "" && !saving && !uploading;
+    type !== null &&
+    (skipsApp || app !== null) &&
+    priority !== null &&
+    description.trim() !== "" &&
+    !saving &&
+    !uploading;
 
   async function addAttachments(files: FileList | null) {
     if (!files?.length) return;
@@ -84,12 +97,19 @@ export function NouveauRetour() {
 
   function chooseApp(key: FeedbackAppKey) {
     setApp(key);
-    setStep(2);
+    setStep(3);
   }
 
   function chooseType(key: FeedbackType) {
     setType(key);
-    setStep(3);
+    // Une idée d'application n'en concerne aucune : on efface un éventuel
+    // choix précédent pour ne pas envoyer une app fantôme.
+    if (key === NEW_APP_TYPE) {
+      setApp(null);
+      setStep(3);
+      return;
+    }
+    setStep(2);
   }
 
   function choosePriority(key: FeedbackPriority) {
@@ -98,14 +118,21 @@ export function NouveauRetour() {
   }
 
   async function handleSubmit() {
-    if (app === null || type === null || priority === null) return;
+    if (type === null || priority === null) return;
+    if (!skipsApp && app === null) return;
     const trimmed = description.trim();
     if (trimmed === "") return;
 
     setSaving(true);
     setError(null);
     try {
-      await submit({ app, type, priority, description: trimmed, attachments: attachments.length ? attachments : undefined });
+      await submit({
+        app: skipsApp ? undefined : app ?? undefined,
+        type,
+        priority,
+        description: trimmed,
+        attachments: attachments.length ? attachments : undefined,
+      });
       navigate("/");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Envoi impossible pour le moment.");
@@ -123,10 +150,10 @@ export function NouveauRetour() {
         </h2>
 
         <div className="mt-4">
-          <Steps step={step} app={app} type={type} priority={priority} onGoTo={setStep} />
+          <Steps step={step} type={type} app={app} priority={priority} skipsApp={skipsApp} onGoTo={setStep} />
         </div>
 
-        {step === 1 && (
+        {step === 2 && (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {APPS.map((item) => (
               <button
@@ -149,7 +176,7 @@ export function NouveauRetour() {
           </div>
         )}
 
-        {step === 2 && (
+        {step === 1 && (
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             {FEEDBACK_TYPES.map((key) => {
               const Icon = TYPE_ICONS[key];
@@ -263,7 +290,7 @@ export function NouveauRetour() {
           <div className="mt-6">
             <Button
               variant="secondary"
-              onClick={() => (step === 1 ? navigate("/") : setStep((step - 1) as Step))}
+              onClick={() => (step === 1 ? navigate("/") : setStep(previousStep(step, skipsApp)))}
             >
               <ArrowLeft className="h-4 w-4" /> {step === 1 ? "Annuler" : "Retour"}
             </Button>
@@ -275,25 +302,39 @@ export function NouveauRetour() {
 }
 
 /**
+ * Étape précédente : l'étape « application » n'existe pas pour une idée
+ * d'application, le bouton « Retour » de l'urgence doit alors sauter au type.
+ */
+function previousStep(step: Step, skipsApp: boolean): Step {
+  if (step === 3 && skipsApp) return 1;
+  return (step - 1) as Step;
+}
+
+/**
  * Fil d'Ariane cliquable : montre où l'on en est, rappelle les choix déjà faits
- * et permet d'y revenir. On ne peut pas sauter vers une étape non atteinte.
+ * et permet d'y revenir. On ne peut pas sauter vers une étape non atteinte, et
+ * l'étape « application » disparaît quand le type n'en vise aucune.
  */
 function Steps({
   step,
   app,
   type,
   priority,
+  skipsApp,
   onGoTo,
 }: {
   step: Step;
   app: FeedbackAppKey | null;
   type: FeedbackType | null;
   priority: FeedbackPriority | null;
+  skipsApp: boolean;
   onGoTo: (step: Step) => void;
 }) {
   const items: Array<{ step: Step; label: string; value: string | null }> = [
-    { step: 1, label: "Application", value: app ? appByKey(app)?.label ?? null : null },
-    { step: 2, label: "Type", value: type ? TYPE_LABELS[type] : null },
+    { step: 1, label: "Type", value: type ? TYPE_LABELS[type] : null },
+    ...(skipsApp
+      ? []
+      : [{ step: 2 as Step, label: "Application", value: app ? appByKey(app)?.label ?? null : null }]),
     { step: 3, label: "Urgence", value: priority ? PRIORITY_LABELS[priority] : null },
     { step: 4, label: "Description", value: null },
   ];
