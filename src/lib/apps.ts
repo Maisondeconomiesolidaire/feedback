@@ -71,6 +71,14 @@ export const APPS: FeedbackApp[] = [
     href: appUrl("VITE_BENNESPRO_URL", "https://materiosol.groupemes.fr"),
   },
   {
+    key: "batire",
+    label: "Bâtire",
+    description: "Matériaux de construction de seconde main : catalogue, dons et ventes.",
+    logoSrc: "/batire-logo.jpg",
+    cardBg: "#ffffff",
+    href: appUrl("VITE_BATIRE_URL", "https://batire.groupemes.fr"),
+  },
+  {
     key: "pointeuse",
     label: "Pointeuse",
     description: "Suivi des salariés et des chantiers : pointages, projets, dépenses et factures.",

@@ -107,7 +107,8 @@ export type FeedbackAppKey =
   | "cycleenbray"
   | "bennespro"
   | "pointeuse"
-  | "feedback";
+  | "feedback"
+  | "batire";
 
 export const FEEDBACK_TYPES: FeedbackType[] = [
   "fonctionnalite",
