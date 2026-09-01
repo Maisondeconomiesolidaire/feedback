@@ -614,6 +614,113 @@ export const createTimeEntry = mutation({
   },
 });
 
+/**
+ * Modification d'un pointage existant : date, projet, salariés (ajout/retrait),
+ * heures, déplacements et remarques. Les taux horaires déjà figés sur une ligne
+ * sont conservés ; un salarié ajouté prend son taux horaire courant.
+ */
+export const updateTimeEntry = mutation({
+  args: {
+    entryId: v.id("ptTimeEntries"),
+    projectId: v.optional(v.id("ptProjects")),
+    date: v.optional(v.number()),
+    lines: v.optional(
+      v.array(
+        v.object({ employeeId: v.id("ptEmployees"), hours: v.number() }),
+      ),
+    ),
+    roundTrips: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    /** Liste complète des pièces jointes après modification (pas un ajout). */
+    documentIds: v.optional(v.array(v.id("ptDocuments"))),
+  },
+  handler: async (ctx, args) => {
+    await requireCrmPermission(ctx, TIME_ENTRIES_PAGE_KEY, "update");
+    const entry = await ctx.db.get(args.entryId);
+    if (!entry) throw new Error("Pointage introuvable.");
+
+    const projectId = args.projectId ?? entry.projectId;
+    const project = await ctx.db.get(projectId);
+    if (!project) throw new Error("Projet introuvable.");
+
+    // Taux horaires déjà figés, pour ne pas rejouer l'historique de paie.
+    const knownRate = new Map(entry.lines.map((l) => [l.employeeId, l.hourlyRate]));
+    const inputLines = args.lines ?? entry.lines.map((l) => ({
+      employeeId: l.employeeId,
+      hours: l.hours,
+    }));
+
+    const lines = [];
+    for (const line of inputLines) {
+      if (line.hours <= 0) continue;
+      let hourlyRate = knownRate.get(line.employeeId);
+      if (hourlyRate === undefined) {
+        const employee = await ctx.db.get(line.employeeId);
+        if (!employee) throw new Error("Salarié introuvable.");
+        hourlyRate = employee.hourlyRate;
+      }
+      lines.push({
+        employeeId: line.employeeId,
+        hours: line.hours,
+        hourlyRate,
+        cost: round2(line.hours * hourlyRate),
+      });
+    }
+    if (lines.length === 0) {
+      throw new Error("Renseignez au moins un salarié avec des heures.");
+    }
+    const laborCost = round2(lines.reduce((s, l) => s + l.cost, 0));
+
+    const roundTrips = args.roundTrips ?? entry.travel?.roundTrips ?? 0;
+    // Distance figée si le projet ne change pas, sinon celle du nouveau projet.
+    const sameProject = projectId === entry.projectId;
+    const distanceKm = sameProject
+      ? entry.travel?.distanceKm ?? project.distanceKm
+      : project.distanceKm;
+    const ratePerKm = sameProject
+      ? entry.travel?.ratePerKm ?? project.travelRatePerKm ?? DEFAULT_TRAVEL_RATE_PER_KM
+      : project.travelRatePerKm ?? DEFAULT_TRAVEL_RATE_PER_KM;
+    const travelCost =
+      roundTrips > 0 ? round2(roundTrips * distanceKm * 2 * ratePerKm) : 0;
+    const travel =
+      roundTrips > 0
+        ? { roundTrips, distanceKm, ratePerKm, cost: travelCost }
+        : undefined;
+
+    // Pièces jointes : `documentIds` est la liste finale voulue. Le rattachement
+    // inverse (`timeEntryId`) suit, sinon un document retiré resterait affiché
+    // comme appartenant au pointage.
+    const documentIds = args.documentIds ?? entry.documentIds;
+    if (args.documentIds) {
+      const before = new Set(entry.documentIds.map((id) => id as string));
+      const after = new Set(args.documentIds.map((id) => id as string));
+      for (const documentId of args.documentIds) {
+        if (!before.has(documentId as string)) {
+          await ctx.db.patch(documentId, { timeEntryId: args.entryId });
+        }
+      }
+      for (const documentId of entry.documentIds) {
+        if (!after.has(documentId as string)) {
+          await ctx.db.patch(documentId, { timeEntryId: undefined });
+        }
+      }
+    }
+
+    await ctx.db.patch(args.entryId, {
+      projectId,
+      clientId: project.clientId,
+      date: args.date ?? entry.date,
+      lines,
+      travel,
+      laborCost,
+      travelCost,
+      totalCost: round2(laborCost + travelCost),
+      notes: args.notes === undefined ? entry.notes : args.notes || undefined,
+      documentIds,
+    });
+  },
+});
+
 export const deleteTimeEntry = mutation({
   args: { entryId: v.id("ptTimeEntries") },
   handler: async (ctx, { entryId }) => {
@@ -743,6 +850,140 @@ export const createTask = mutation({
     // Les documents portent déjà le projet ; on les laisse rattachés à la tâche
     // via `documentIds` sans toucher à `timeEntryId` (réservé aux pointages).
     return taskId;
+  },
+});
+
+/**
+ * Modification d'une tâche : projet, date, déplacement, remarques et surtout
+ * salariés affectés (ajout, retrait, temps estimé, temps réel). Les affectations
+ * transmises décrivent l'état voulu : un salarié absent du tableau est retiré,
+ * un `confirmedHours` omis efface la confirmation existante.
+ */
+export const updateTask = mutation({
+  args: {
+    taskId: v.id("ptTasks"),
+    projectId: v.optional(v.id("ptProjects")),
+    date: v.optional(v.number()),
+    assignments: v.optional(
+      v.array(
+        v.object({
+          employeeId: v.id("ptEmployees"),
+          estimatedHours: v.number(),
+          confirmedHours: v.optional(v.number()),
+        }),
+      ),
+    ),
+    roundTrips: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    /** Liste complète des pièces jointes après modification (pas un ajout). */
+    documentIds: v.optional(v.array(v.id("ptDocuments"))),
+  },
+  handler: async (ctx, args) => {
+    await requireCrmPermission(ctx, TASKS_PAGE_KEY, "update");
+    const task = await ctx.db.get(args.taskId);
+    if (!task) throw new Error("Tâche introuvable.");
+
+    const projectId = args.projectId ?? task.projectId;
+    const project = await ctx.db.get(projectId);
+    if (!project) throw new Error("Projet introuvable.");
+
+    const previous = new Map(task.assignments.map((a) => [a.employeeId, a]));
+    const inputAssignments =
+      args.assignments ??
+      task.assignments.map((a) => ({
+        employeeId: a.employeeId,
+        estimatedHours: a.estimatedHours,
+        confirmedHours: a.confirmedHours,
+      }));
+
+    const now = Date.now();
+    const assignments = [];
+    for (const input of inputAssignments) {
+      if (input.estimatedHours <= 0) continue;
+      if (input.confirmedHours !== undefined && input.confirmedHours < 0) {
+        throw new Error("Heures invalides.");
+      }
+      const before = previous.get(input.employeeId);
+      let hourlyRate = before?.hourlyRate;
+      if (hourlyRate === undefined) {
+        const employee = await ctx.db.get(input.employeeId);
+        if (!employee) throw new Error("Salarié introuvable.");
+        hourlyRate = employee.hourlyRate;
+      }
+      const confirmedHours = input.confirmedHours;
+      const unchanged = before?.confirmedHours === confirmedHours;
+      assignments.push({
+        employeeId: input.employeeId,
+        hourlyRate,
+        estimatedHours: input.estimatedHours,
+        confirmedHours,
+        confirmedAt:
+          confirmedHours === undefined
+            ? undefined
+            : unchanged
+              ? before?.confirmedAt ?? now
+              : now,
+      });
+    }
+    if (assignments.length === 0) {
+      throw new Error("Affectez au moins un salarié avec un temps estimé.");
+    }
+
+    const roundTrips = args.roundTrips ?? task.travel?.roundTrips ?? 0;
+    const sameProject = projectId === task.projectId;
+    const distanceKm = sameProject
+      ? task.travel?.distanceKm ?? project.distanceKm
+      : project.distanceKm;
+    const ratePerKm = sameProject
+      ? task.travel?.ratePerKm ?? project.travelRatePerKm ?? DEFAULT_TRAVEL_RATE_PER_KM
+      : project.travelRatePerKm ?? DEFAULT_TRAVEL_RATE_PER_KM;
+    const travel =
+      roundTrips > 0
+        ? {
+            roundTrips,
+            distanceKm,
+            ratePerKm,
+            cost: round2(roundTrips * distanceKm * 2 * ratePerKm),
+          }
+        : undefined;
+
+    await ctx.db.patch(args.taskId, {
+      projectId,
+      clientId: project.clientId,
+      date: args.date ?? task.date,
+      assignments,
+      travel,
+      notes: args.notes === undefined ? task.notes : args.notes || undefined,
+      // `timeEntryId` reste réservé aux pointages : une tâche ne porte ses
+      // documents que par sa propre liste.
+      documentIds: args.documentIds ?? task.documentIds,
+      status: assignments.every((a) => typeof a.confirmedHours === "number")
+        ? "confirmed"
+        : "pending",
+    });
+  },
+});
+
+/**
+ * Pièces jointes d'une tâche, depuis l'écran de confirmation des heures.
+ *
+ * Un salarié qui pointe depuis le chantier a les droits « pointages », pas
+ * « tâches » : sans cette mutation dédiée, il ne pourrait joindre ni photo ni
+ * bon de livraison au moment où il les a sous la main.
+ */
+export const updateTaskDocuments = mutation({
+  args: {
+    taskId: v.id("ptTasks"),
+    documentIds: v.array(v.id("ptDocuments")),
+  },
+  handler: async (ctx, args) => {
+    await requireAnyCrmPermission(ctx, [
+      [TIME_ENTRIES_PAGE_KEY, "update"],
+      [TASKS_PAGE_KEY, "update"],
+    ]);
+    const task = await ctx.db.get(args.taskId);
+    if (!task) throw new Error("Tâche introuvable.");
+    await ctx.db.patch(args.taskId, { documentIds: args.documentIds });
   },
 });
 
@@ -933,6 +1174,38 @@ export const deleteInvoice = mutation({
  * rattache à un projet. S'il provient d'un pointage, `timeEntryId` sera posé au
  * moment de la création du pointage.
  */
+/**
+ * Détail des pièces jointes d'une tâche ou d'un pointage (nom, type, lien).
+ * Les listes ne renvoient que les identifiants : les recharger ici évite de
+ * signer une URL de stockage pour chaque document de chaque ligne affichée.
+ */
+export const documentsByIds = query({
+  args: { documentIds: v.array(v.id("ptDocuments")) },
+  handler: async (ctx, { documentIds }) => {
+    await requireAnyCrmPermission(ctx, [
+      [TASKS_PAGE_KEY, "read"],
+      [TIME_ENTRIES_PAGE_KEY, "read"],
+      [PROJECTS_PAGE_KEY, "read"],
+    ]);
+    const documents = await Promise.all(
+      documentIds.map(async (documentId) => {
+        const document = await ctx.db.get(documentId);
+        if (!document) return null;
+        return {
+          _id: document._id,
+          name: document.name,
+          mimeType: document.mimeType,
+          kind: document.kind ?? "other",
+          url: await ctx.storage.getUrl(document.storageId),
+        };
+      }),
+    );
+    return documents.filter(
+      (document): document is NonNullable<typeof document> => Boolean(document),
+    );
+  },
+});
+
 export const registerDocument = mutation({
   args: {
     storageId: v.id("_storage"),
@@ -956,6 +1229,9 @@ export const registerDocument = mutation({
       [PROJECTS_PAGE_KEY, "create"],
       [PROJECTS_PAGE_KEY, "update"],
       [TIME_ENTRIES_PAGE_KEY, "create"],
+      [TIME_ENTRIES_PAGE_KEY, "update"],
+      [TASKS_PAGE_KEY, "create"],
+      [TASKS_PAGE_KEY, "update"],
       [EXPENSES_PAGE_KEY, "create"],
       [INVOICES_PAGE_KEY, "create"],
     ]);
@@ -980,6 +1256,7 @@ export const deleteDocument = mutation({
     await requireAnyCrmPermission(ctx, [
       [PROJECTS_PAGE_KEY, "update"],
       [TIME_ENTRIES_PAGE_KEY, "update"],
+      [TASKS_PAGE_KEY, "update"],
       [EXPENSES_PAGE_KEY, "update"],
       [INVOICES_PAGE_KEY, "update"],
       [PROJECTS_PAGE_KEY, "delete"],

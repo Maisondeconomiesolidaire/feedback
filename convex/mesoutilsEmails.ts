@@ -1,6 +1,6 @@
 import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
-import { esc, resendSend, storageImageUrl } from "./emails";
+import { esc, resendSend, storageImageUrl, type EmailAttachment } from "./emails";
 
 // Emails internes de l'application Mes Outils (équipe), distincts des emails
 // clients de la recyclerie (cf. `emails.ts`). Expéditeur et gabarit dédiés.
@@ -9,10 +9,18 @@ const FROM = "Mes Outils <no-reply@mesoutils.eco-solidaire.fr>";
 const BRAND = "#47c667";
 const BRAND_DARK = "#2fa855";
 
+/**
+ * L'intendance suit l'ensemble des réservations (véhicules, salles,
+ * équipements) : demandes, acceptations, refus et annulations. Elle est donc
+ * ajoutée aux listes de responsables et mise en copie cachée des emails
+ * envoyés aux demandeurs.
+ */
+export const INTENDANCE_EMAIL = "intendance@eco-solidaire.fr";
+
 /** Adresses des responsables notifiés des demandes de réservation de véhicule. */
 export const VEHICLE_REQUEST_MANAGER_EMAILS = [
   "f.henry@eco-solidaire.fr",
-  "y.prata@eco-solidaire.fr",
+  INTENDANCE_EMAIL,
 ];
 
 /** URL publique de l'app Mes Outils, pour les liens et le logo des emails. */
@@ -283,6 +291,8 @@ export const sendReservationEmail = internalAction({
       `${copy.subject} · ${args.assetName}`,
       html,
       FROM,
+      undefined,
+      { bcc: [INTENDANCE_EMAIL] },
     );
   },
 });
@@ -368,8 +378,8 @@ export const sendRoomFeedbackRequestEmail = internalAction({
 });
 
 /**
- * Notifie les responsables (f.henry / y.prata) d'une nouvelle demande de
- * réservation de véhicule, avec un lien direct vers la validation.
+ * Notifie les responsables d'une nouvelle demande de réservation de véhicule,
+ * avec un lien direct vers la validation.
  */
 export const sendVehicleRequestToManagers = internalAction({
   args: {
@@ -486,6 +496,7 @@ export const sendVehicleReservationManagerUpdate = internalAction({
 /** Adresses des responsables notifiés des réservations de salle. */
 export const ROOM_RESERVATION_MANAGER_EMAILS = [
   "a.still@eco-solidaire.fr",
+  INTENDANCE_EMAIL,
 ];
 
 /**
@@ -546,7 +557,9 @@ export const sendRecyclerieVehicleNotice = internalAction({
     const subject = approved
       ? `Réservation acceptée · ${args.vehicleName} (Recyclerie)`
       : `Demande de réservation · ${args.vehicleName} (Recyclerie)`;
-    await resendSend(RECYCLERIE_VEHICLE_NOTICE_EMAILS, subject, html, FROM);
+    await resendSend(RECYCLERIE_VEHICLE_NOTICE_EMAILS, subject, html, FROM, undefined, {
+      bcc: [INTENDANCE_EMAIL],
+    });
   },
 });
 
@@ -615,7 +628,12 @@ export const sendEquipmentReservationToManagers = internalAction({
     equipmentImageStorageId: v.optional(v.string()),
   },
   handler: async (_ctx, args) => {
-    if (args.recipients.length === 0) return;
+    // L'intendance suit aussi les réservations d'équipement, même si l'objet
+    // n'a pas de référent déclaré.
+    const recipients = Array.from(
+      new Set([...args.recipients, INTENDANCE_EMAIL].map((email) => email.trim()).filter(Boolean)),
+    );
+    if (recipients.length === 0) return;
     const rows: Array<[string, string]> = [
       ["Équipement", args.equipmentName],
       ["Objet", args.label],
@@ -641,7 +659,7 @@ export const sendEquipmentReservationToManagers = internalAction({
     });
 
     await sendToEachRecipient(
-      args.recipients,
+      recipients,
       `Réservation d'équipement · ${args.equipmentName} (${args.requesterName})`,
       html,
     );
@@ -817,6 +835,146 @@ export const sendMaintenanceCreatedEmail = internalAction({
     await resendSend(
       MAINTENANCE_NOTICE_EMAILS,
       `Nouvelle maintenance · ${args.vehicleName}`,
+      html,
+      FROM,
+    );
+  },
+});
+
+// ─── RH : contrats générés ───────────────────────────────────────────────────
+
+/**
+ * Destinataires prévenus des contrats générés pour les structures MES et LSDB
+ * (direction : ces deux structures n'ont pas de service RH sur place).
+ */
+export const CONTRACT_NOTICE_EMAILS = ["m.lahmer@eco-solidaire.fr"];
+
+/**
+ * Prévient la direction qu'un contrat MES / LSDB vient d'être généré, avec le
+ * document en pièce jointe.
+ *
+ * La pièce jointe peut manquer : le document vit sur le SharePoint du tenant et
+ * n'est pas toujours téléchargeable sans session (cf. `rh.ts`). Dans ce cas
+ * l'email part quand même, avec le lien SharePoint et une mention explicite —
+ * mieux vaut une notification sans fichier qu'aucune notification.
+ */
+export const sendContractGeneratedEmail = internalAction({
+  args: {
+    employeeName: v.string(),
+    structureLabel: v.string(),
+    documentLabel: v.string(),
+    contractType: v.string(),
+    numeroContrat: v.string(),
+    poste: v.string(),
+    dateDebut: v.string(),
+    dateFin: v.string(),
+    requestedBy: v.string(),
+    contractUrl: v.optional(v.string()),
+    attachment: v.optional(
+      v.object({ filename: v.string(), content: v.string() }),
+    ),
+  },
+  handler: async (_ctx, args) => {
+    const attachments: EmailAttachment[] = args.attachment ? [args.attachment] : [];
+    const missingNotice = args.attachment
+      ? ""
+      : `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 22px;padding:16px 18px;background:#fff8e8;border:1px solid #f5d99a;border-radius:14px;">
+          <tr><td>
+            <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.55;color:#6b562c;">Le document n'a pas pu être joint automatiquement (accès SharePoint requis). Utilisez le lien ci-dessous pour l'ouvrir.</p>
+          </td></tr>
+        </table>`;
+
+    const html = shell({
+      preheader: `${args.documentLabel} généré pour ${args.employeeName} (${args.structureLabel}).`,
+      heading: `${args.documentLabel} — ${args.employeeName}`,
+      intro: `Un ${args.documentLabel.toLowerCase()} vient d'être généré pour <strong>${esc(args.employeeName)}</strong> (${esc(args.structureLabel)})${args.attachment ? ", il est joint à cet email" : ""}.`,
+      contentHtml: `
+        ${detailCard([
+          ["Salarié", args.employeeName],
+          ["Structure", args.structureLabel],
+          ["Document", args.documentLabel],
+          ["Type de contrat", args.contractType],
+          ["N° de contrat", args.numeroContrat || "—"],
+          ["Poste", args.poste || "—"],
+          ["Début", args.dateDebut || "—"],
+          ["Fin", args.dateFin || "—"],
+          ["Généré par", args.requestedBy],
+        ])}
+        ${missingNotice}
+        ${button(args.contractUrl ?? null, "Ouvrir le contrat")}
+      `,
+    });
+
+    await resendSend(
+      CONTRACT_NOTICE_EMAILS,
+      `${args.documentLabel} · ${args.employeeName} (${args.structureLabel})`,
+      html,
+      FROM,
+      attachments,
+    );
+  },
+});
+
+/**
+ * Prévenance de fin de contrat (J-22, J-15, J-3) : prévient les responsables RH
+ * de la structure qu'un contrat arrive à échéance, pour renouveler ou notifier
+ * à temps.
+ *
+ * Les destinataires sont calculés en amont (`hrContractNotices.ts`) selon la
+ * structure du salarié : ils ne sont pas les mêmes d'une structure à l'autre.
+ */
+export const sendContractEndNoticeEmail = internalAction({
+  args: {
+    to: v.array(v.string()),
+    employeeName: v.string(),
+    structureLabel: v.string(),
+    contractType: v.string(),
+    numeroContrat: v.string(),
+    poste: v.string(),
+    dateDebut: v.string(),
+    dateFin: v.string(),
+    dateFinLabel: v.string(),
+    daysLeft: v.number(),
+    /** Palier de prévenance atteint : 22, 15 ou 3 jours. */
+    threshold: v.number(),
+  },
+  handler: async (_ctx, args) => {
+    const when =
+      args.daysLeft === 0
+        ? "aujourd'hui"
+        : args.daysLeft === 1
+          ? "demain"
+          : `dans ${args.daysLeft} jours`;
+    const urgency = args.threshold <= 3 ? "#dc2626" : args.threshold <= 15 ? "#d97706" : "#166534";
+
+    const html = shell({
+      preheader: `Le contrat de ${args.employeeName} se termine ${when} (${args.dateFinLabel}).`,
+      heading: `Fin de contrat — ${args.employeeName}`,
+      intro: `Le contrat de <strong>${esc(args.employeeName)}</strong> (${esc(args.structureLabel)}) arrive à échéance <strong>${esc(when)}</strong>, le <strong>${esc(args.dateFinLabel)}</strong>. Pensez à préparer le renouvellement ou la notification de fin de contrat.`,
+      contentHtml: `
+        <p style="margin:0 0 18px;font-family:Helvetica,Arial,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${urgency};">
+          Prévenance J-${args.threshold} ·
+          ${args.daysLeft === 0 ? "échéance aujourd'hui" : args.daysLeft === 1 ? "échéance demain" : `échéance dans ${args.daysLeft} jours`}
+        </p>
+        ${detailCard([
+          ["Salarié", args.employeeName],
+          ["Structure", args.structureLabel],
+          ["Type de contrat", args.contractType],
+          ["N° de contrat", args.numeroContrat || "—"],
+          ["Poste", args.poste || "—"],
+          ["Début", args.dateDebut || "—"],
+          ["Fin", args.dateFinLabel],
+        ])}
+        <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#6b7a72;">
+          Rappel : la prévenance est envoyée à J-22, J-15 et J-3 de l'échéance,
+          d'après le dernier contrat généré pour ce salarié dans Mes Outils → RH.
+        </p>
+      `,
+    });
+
+    await resendSend(
+      args.to,
+      `⏰ Fin de contrat J-${args.threshold} · ${args.employeeName} (${args.structureLabel}) — ${args.dateFinLabel}`,
       html,
       FROM,
     );

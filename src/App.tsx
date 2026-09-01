@@ -4,6 +4,7 @@ import { AppLayout } from "./components/AppLayout";
 import { MesRetours } from "./pages/MesRetours";
 import { NouveauRetour } from "./pages/NouveauRetour";
 import { Kanban } from "./pages/Kanban";
+import { ProfileSync } from "./components/ProfileSync";
 
 /**
  * Toute l'app est derrière l'authentification Clerk (prod, partagée avec les 6
@@ -12,6 +13,9 @@ import { Kanban } from "./pages/Kanban";
 export default function App() {
   return (
     <>
+      {/* Hors de toute garde d'authentification : l'origine de l'inscription
+          se constitue pendant la visite déconnectée. */}
+      <ProfileSync app="feedback" />
       <SignedOut>
         <div className="crm-light flex min-h-screen items-center justify-center bg-[var(--crm-bg)] p-4">
           <div className="w-full max-w-md">

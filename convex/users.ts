@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { action, env, internalAction, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { action, env, internalAction, internalMutation, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { fetchAllClerkUsers, normalizeCustomer, normalizeEmail, requireCrmPermission, requireUser, titleCaseName } from "./lib";
 import { STEP } from "./processes";
@@ -283,11 +283,67 @@ async function remapClerkIdEverywhere(
  * Appelée à la connexion : crée le profil s'il n'existe pas et rattache
  * automatiquement les demandes passées dont l'email correspond.
  */
+/**
+ * Corrige l'application d'origine d'un compte (`signupApp`).
+ *
+ * Outil de maintenance : un compte créé depuis un lien Mes Outils alors que
+ * l'utilisateur est en réalité un client Recyclerie / Bennes & Pro fausse le
+ * décompte « clients par application » du tableau de bord admin. Interne, donc
+ * appelable uniquement en CLI (`npx convex run`) ou depuis une autre fonction —
+ * jamais depuis le navigateur.
+ */
+export const setSignupApp = internalMutation({
+  args: {
+    email: v.string(),
+    app: v.union(
+      v.literal("mesoutils"),
+      v.literal("recycapp"),
+      v.literal("klyde"),
+      v.literal("cycleenbray"),
+      v.literal("bennespro"),
+      v.literal("pointeuse"),
+      v.literal("feedback"),
+    ),
+    /** Chemin d'inscription à réécrire ; laissé tel quel si absent. */
+    path: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const email = normalizeEmail(args.email);
+    const users = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .collect();
+    if (users.length === 0) return { email, updated: 0, previous: [] as string[] };
+
+    const previous: string[] = [];
+    for (const user of users) {
+      previous.push(user.signupApp ?? "—");
+      await ctx.db.patch(user._id, {
+        signupApp: args.app,
+        ...(args.path === undefined ? {} : { signupPath: args.path }),
+        updatedAt: Date.now(),
+      });
+    }
+    return { email, updated: users.length, previous, app: args.app };
+  },
+});
+
 export const syncProfile = mutation({
   args: {
-    // Origine de l'inscription (app + chemin/formulaire), enregistrée une seule
-    // fois, à la création du profil.
-    source: v.optional(v.object({ app: v.string(), path: v.string() })),
+    // Origine de l'inscription, enregistrée une seule fois, à la création du
+    // profil. `path` est relevé au retour de Clerk (souvent l'accueil) ;
+    // `entryPath` et `landingPath` viennent du navigateur, capturés avant la
+    // redirection : ce sont eux qui disent de quel écran part l'inscription.
+    source: v.optional(
+      v.object({
+        app: v.string(),
+        path: v.string(),
+        entryPath: v.optional(v.string()),
+        landingPath: v.optional(v.string()),
+        referrer: v.optional(v.string()),
+        utm: v.optional(v.string()),
+      }),
+    ),
   },
   handler: async (ctx, { source }) => {
     const identity = await requireUser(ctx);
@@ -318,6 +374,10 @@ export const syncProfile = mutation({
           imageUrl: imageUrl ?? profileByEmail.imageUrl,
           signupApp: profileByEmail.signupApp ?? source?.app,
           signupPath: profileByEmail.signupPath ?? source?.path,
+          signupEntryPath: profileByEmail.signupEntryPath ?? source?.entryPath,
+          signupLandingPath: profileByEmail.signupLandingPath ?? source?.landingPath,
+          signupReferrer: profileByEmail.signupReferrer ?? source?.referrer,
+          signupUtm: profileByEmail.signupUtm ?? source?.utm,
           updatedAt: now,
         });
         profile = await ctx.db.get(profileByEmail._id);
@@ -330,16 +390,27 @@ export const syncProfile = mutation({
           imageUrl,
           signupApp: source?.app,
           signupPath: source?.path,
+          signupEntryPath: source?.entryPath,
+          signupLandingPath: source?.landingPath,
+          signupReferrer: source?.referrer,
+          signupUtm: source?.utm,
           createdAt: now,
           updatedAt: now,
         });
         profile = await ctx.db.get(profileId);
       }
-    } else if (source && (!profile.signupApp || !profile.signupPath)) {
+    } else if (
+      source &&
+      (!profile.signupApp || !profile.signupPath || !profile.signupEntryPath)
+    ) {
       // Complète la source si elle manquait (profils créés avant le suivi).
       await ctx.db.patch(profile._id, {
         signupApp: profile.signupApp ?? source.app,
         signupPath: profile.signupPath ?? source.path,
+        signupEntryPath: profile.signupEntryPath ?? source.entryPath,
+        signupLandingPath: profile.signupLandingPath ?? source.landingPath,
+        signupReferrer: profile.signupReferrer ?? source.referrer,
+        signupUtm: profile.signupUtm ?? source.utm,
         updatedAt: now,
       });
       profile = await ctx.db.get(profile._id);
@@ -631,6 +702,15 @@ export const getMyRequest = query({
       quoteAmount: request.quoteAmount ?? null,
       quoteDetails: request.quoteDetails ?? null,
       collecteType: request.collecteType ?? null,
+      // Le dépôt sert au client à retrouver son créneau et à l'annuler.
+      depot: request.depot
+        ? {
+            site: request.depot.site,
+            slotStart: request.depot.slotStart,
+            slotEnd: request.depot.slotEnd,
+            vehicleType: request.depot.vehicleType,
+          }
+        : null,
       comment: request.comment ?? null,
       customer: normalizeCustomer(request.customer),
       createdAt: request.createdAt,
