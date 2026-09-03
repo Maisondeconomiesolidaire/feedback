@@ -1,10 +1,11 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import { SignedIn, SignedOut, SignIn } from "@clerk/clerk-react";
+import { SignedIn, SignedOut } from "@clerk/clerk-react";
 import { AppLayout } from "./components/AppLayout";
 import { MesRetours } from "./pages/MesRetours";
 import { NouveauRetour } from "./pages/NouveauRetour";
 import { Kanban } from "./pages/Kanban";
 import { ProfileSync } from "./components/ProfileSync";
+import { AuthSwitch } from "./components/ui/auth-switch";
 
 /**
  * Toute l'app est derrière l'authentification Clerk (prod, partagée avec les 6
@@ -17,23 +18,7 @@ export default function App() {
           se constitue pendant la visite déconnectée. */}
       <ProfileSync app="feedback" />
       <SignedOut>
-        <div className="crm-light flex min-h-screen items-center justify-center bg-[var(--crm-bg)] p-4">
-          <div className="w-full max-w-md">
-            <div className="mb-6 flex flex-col items-center text-center">
-              <img
-                src="/mesoutils-light.png"
-                alt="Mes Outils"
-                className="h-16 w-auto object-contain"
-              />
-              <h1 className="mt-4 text-2xl font-bold text-zinc-100">Feedback</h1>
-              <p className="mt-2 text-sm text-zinc-400">
-                Connectez-vous avec votre compte habituel pour nous faire un retour sur
-                les applications du groupe.
-              </p>
-            </div>
-            <SignIn routing="hash" />
-          </div>
-        </div>
+        <AuthSwitch appName="Feedback" logoSrc="/mesoutils-light.png" />
       </SignedOut>
 
       <SignedIn>
